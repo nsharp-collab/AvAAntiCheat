@@ -1,0 +1,18 @@
+﻿name: AvAAntiCheat
+version: 1.8
+main: AvAAntiCheat
+api-version: 1.18
+authors: [Nolan]
+description: An anti-cheat system detecting flight, spam, and PvP logging.
+
+commands:
+ac:
+description: AvA Anti-Cheat administration commands.
+usage: /ac <status|reload|start 1>
+permission: ava.admin
+permission-message: You don't have permission to use the AvA Anti-Cheat commands.
+
+permissions:
+ava.admin:
+description: Allows access to all AvA Anti-Cheat administration commands.
+default: op
