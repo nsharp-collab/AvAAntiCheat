@@ -21,7 +21,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.potion.PotionEffectType; // <-- NEW IMPORT FOR LEVITATION CHECK
+import org.bukkit.potion.PotionEffectType; 
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -36,7 +36,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.8.2";
+    private static final String AC_VERSION = "1.8.3"; // Updated Version
     private static final String AC_AUTHOR = "Nolan";
     private boolean antiCheatActive = true; // State flag for the stop/start commands
     private final List<String> COMMAND_PREFIXES = Arrays.asList("#", "%");
@@ -57,6 +57,10 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private final long MAX_SWING_DELAY_MS = 50; // Max time allowed between a hit and an arm swing (50ms is very quick)
     private final int SEQUENCE_VIOLATION_LIMIT = 5; // Violations before kick
     
+    // Attack Speed Constants (NEW CHECK)
+    private final long MIN_ATTACK_DELAY_MS = 100; // Minimum delay between successful attacks (100ms is 10 CPS max)
+    private final int ATTACK_SPEED_VIOLATION_LIMIT = 5; // Violations before kick
+    
     // --- Data Storage for Cheat Tracking ---
     private HashMap<UUID, PlayerData> playerDataMap = new HashMap<>();
     
@@ -73,9 +77,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         // Combat Logging Check
         long combatEndTime = 0; // The timestamp when combat ends
         
-        // Attack Sequence Check (NEW)
-        long lastDamageTime = 0; // Time of the last EntityDamageByEntityEvent the player caused
+        // Attack Sequence Check
+        long lastDamageTime = 0; // Time of the last EntityDamageByEntityEvent the player caused (Used for swing check)
         int sequenceViolations = 0; // Violations for missing the swing animation
+        
+        // Attack Speed Check (NEW FIELDS)
+        long lastAttackTime = 0; // Time of the last successful attack (Used for speed check)
+        int attackSpeedViolations = 0; // Violations for attacking too fast
         
         public boolean isInCombat() {
             // Check if the current time is before the combat end time
@@ -222,9 +230,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             return; 
         }
 
-        // -----------------------------------------------------------
         // NEW LOGIC: Ignore movement when in special states
-        // -----------------------------------------------------------
         
         // Check 3.1: Levitation Effect
         if (player.hasPotionEffect(PotionEffectType.LEVITATION)) {
@@ -245,15 +251,10 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
 
         // Check 3.4: Falling (allow high deltaY if falling is the cause)
-        // A non-zero fall distance indicates the player is falling or just jumped.
         if (player.getFallDistance() > 0.5) { 
              data.flyViolations = 0;
              return;
         }
-        
-        // -----------------------------------------------------------
-        // END NEW LOGIC
-        // -----------------------------------------------------------
         
         double deltaY = to.getY() - from.getY();
         
@@ -310,18 +311,15 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    // Attack Sequence Validation Logic (NEW)
+    // Attack Sequence Validation Logic (existing)
     private void checkAttackSequence(Player player, PlayerData data) {
          if (!antiCheatActive) return; 
 
          // Check if a damage event happened recently
          if (data.lastDamageTime > 0) {
-            // Calculate time since the damage occurred
             long timeSinceDamage = System.currentTimeMillis() - data.lastDamageTime;
             
             if (timeSinceDamage > MAX_SWING_DELAY_MS) {
-                // If the damage time is too old, it means the swing never came in time.
-                // This indicates a failed sequence.
                 data.sequenceViolations++;
                 
                 if (data.sequenceViolations > SEQUENCE_VIOLATION_LIMIT) {
@@ -331,12 +329,32 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 }
             }
             
-            // Reset the last damage time for the current player after checking.
-            // This is the key to preventing double-punishment, as we expect a swing 
-            // to follow *immediately*.
             data.lastDamageTime = 0; 
         }
     }
+    
+    // Attack Speed Check Logic (NEW)
+    private void checkAttackSpeed(Player attacker, PlayerData data) {
+        if (!antiCheatActive) return;
+        
+        long currentTime = System.currentTimeMillis();
+        long timeSinceLastAttack = currentTime - data.lastAttackTime;
+        
+        // Only check if the player has attacked before and the time is extremely short
+        if (data.lastAttackTime > 0 && timeSinceLastAttack < MIN_ATTACK_DELAY_MS) {
+            data.attackSpeedViolations++;
+            
+            if (data.attackSpeedViolations > ATTACK_SPEED_VIOLATION_LIMIT) {
+                punishPlayer(attacker, "Attack Speed (Autoclicker)", data.attackSpeedViolations);
+            } else {
+                attacker.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! Attacking too fast. (" + data.attackSpeedViolations + "/" + ATTACK_SPEED_VIOLATION_LIMIT + ")");
+            }
+        }
+        
+        // Always update the last attack time to the current time if the attack was successful
+        data.lastAttackTime = currentTime;
+    }
+
 
     // ----------------------------------------------------------------------
     // EVENT HANDLERS (Used to track and check players)
@@ -364,7 +382,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    // NEW EVENT HANDLER: Track player arm swings (Animation Packet)
     @EventHandler
     public void onPlayerAnimate(PlayerAnimationEvent event) {
         if (event.getAnimationType() != PlayerAnimationType.ARM_SWING) {
@@ -376,18 +393,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         if (data == null) return;
         
         // If the swing happens, we check if a damage event was pending (lastDamageTime > 0)
-        // AND if the swing happened quickly enough after the damage.
         if (data.lastDamageTime > 0) {
             long timeSinceDamage = System.currentTimeMillis() - data.lastDamageTime;
             
             if (timeSinceDamage <= MAX_SWING_DELAY_MS) {
                 // Valid Sequence: Damage was recorded, and swing followed quickly.
                 data.sequenceViolations = Math.max(0, data.sequenceViolations - 1); // Decrease violation
-            } else {
-                // Invalid Timing: Swing was too slow after the damage event.
-                // This means the swing either was delayed or was for another action.
-                // We let the checkAttackSequence handle the violation accumulation.
-            }
+            } 
             
             data.lastDamageTime = 0; // Clear the damage time whether the check was successful or not
         }
@@ -401,8 +413,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             Player attacker = (Player) event.getDamager();
             PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
             
-            // If the attacker is a player, record the time of the damage
             if (attackerData != null) {
+                
+                // 1. ATTACK SPEED CHECK (NEW)
+                checkAttackSpeed(attacker, attackerData);
+                
+                // 2. ATTACK SEQUENCE TRACKER (Existing)
+                // Record the time of the damage for the subsequent swing validation
                 attackerData.lastDamageTime = System.currentTimeMillis();
             }
         }
@@ -421,21 +438,18 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             if (attackerData != null) attackerData.combatEndTime = combatEndTimestamp;
         }
         
-        // Since the damage event is the START of the sequence check, 
-        // we use the server's scheduler to force a check shortly after.
-        // If the swing hasn't happened by then, the player is flagged.
+        // Sequence Check Scheduler (Existing)
         if (event.getDamager() instanceof Player) {
             Player attacker = (Player) event.getDamager();
             PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
             
-            // Schedule the validation to run after the MAX_SWING_DELAY_MS has passed (in server ticks)
             long delayTicks = MAX_SWING_DELAY_MS / 50; // 1 tick = 50ms
             
             getServer().getScheduler().runTaskLater(this, () -> {
                 if (attackerData != null) {
                     checkAttackSequence(attacker, attackerData);
                 }
-            }, delayTicks + 1); // Add a small buffer of 1 tick
+            }, delayTicks + 1); 
         }
     }
     
@@ -490,8 +504,10 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 limit = FLY_VIOLATION_LIMIT;
             } else if (cheatType.equals("Chat Spam")) {
                 limit = SPAM_VIOLATION_LIMIT;
-            } else if (cheatType.equals("Illegal Attack Sequence")) { // NEW
+            } else if (cheatType.equals("Illegal Attack Sequence")) { 
                 limit = SEQUENCE_VIOLATION_LIMIT;
+            } else if (cheatType.equals("Attack Speed (Autoclicker)")) { // NEW
+                limit = ATTACK_SPEED_VIOLATION_LIMIT;
             }
 
             if (limit > 0 && violations >= limit) {
@@ -502,6 +518,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     if (cheatType.equals("Flight")) data.flyViolations = 0;
                     if (cheatType.equals("Chat Spam")) data.spamViolations = 0;
                     if (cheatType.equals("Illegal Attack Sequence")) data.sequenceViolations = 0;
+                    if (cheatType.equals("Attack Speed (Autoclicker)")) data.attackSpeedViolations = 0; // NEW RESET
                 }
             } else if (limit > 0) {
                 player.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! Detected potential " + cheatType + " (" + violations + "/" + limit + ")");
