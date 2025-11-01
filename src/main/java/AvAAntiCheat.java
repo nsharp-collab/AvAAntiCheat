@@ -512,7 +512,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
             if (limit > 0 && violations >= limit) {
                 kickPlayer(player, cheatType + " (Excessive Violations)");
-                // Reset violations after kick to prevent immediate re-kick upon reconnect
+                // Reset violations after kick to prevent immediate re-kick upon reconnect test
                 PlayerData data = playerDataMap.get(player.getUniqueId());
                 if (data != null) {
                     if (cheatType.equals("Flight")) data.flyViolations = 0;
