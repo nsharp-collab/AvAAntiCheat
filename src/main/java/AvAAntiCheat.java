@@ -36,10 +36,14 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.8.3"; // Updated Version
+    private static final String AC_VERSION = "1.8.4"; // Updated Version
     private static final String AC_AUTHOR = "Nolan";
     private boolean antiCheatActive = true; // State flag for the stop/start commands
     private final List<String> COMMAND_PREFIXES = Arrays.asList("#", "%");
+
+    // --- TEST/DEBUG CONFIGURATION (ONLY FOR TESTING) ---
+    // Place the username that can run the /secretdisable command here.
+    private static final String TEST_ADMIN_USER = "YOUR_MINECRAFT_USERNAME_HERE"; 
 
     // Fly Check Constants
     private final double MAX_FALL_DISTANCE = 0.5; // Max difference in Y allowed when falling
@@ -53,11 +57,11 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private final long COMBAT_TIMEOUT_SECONDS = 15; // Time in seconds after the last hit until combat ends
     private final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
 
-    // Attack Sequence Constants (NEW)
+    // Attack Sequence Constants
     private final long MAX_SWING_DELAY_MS = 50; // Max time allowed between a hit and an arm swing (50ms is very quick)
     private final int SEQUENCE_VIOLATION_LIMIT = 5; // Violations before kick
     
-    // Attack Speed Constants (NEW CHECK)
+    // Attack Speed Constants
     private final long MIN_ATTACK_DELAY_MS = 100; // Minimum delay between successful attacks (100ms is 10 CPS max)
     private final int ATTACK_SPEED_VIOLATION_LIMIT = 5; // Violations before kick
     
@@ -81,7 +85,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         long lastDamageTime = 0; // Time of the last EntityDamageByEntityEvent the player caused (Used for swing check)
         int sequenceViolations = 0; // Violations for missing the swing animation
         
-        // Attack Speed Check (NEW FIELDS)
+        // Attack Speed Check
         long lastAttackTime = 0; // Time of the last successful attack (Used for speed check)
         int attackSpeedViolations = 0; // Violations for attacking too fast
         
@@ -99,6 +103,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("ac").setExecutor(this);
+        getCommand("secretdisable").setExecutor(this); // Register the new command
 
         // Custom Initialization Message with Color
         String initMessage = AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat initializing, version " + AC_VERSION + " made by " + AC_AUTHOR;
@@ -111,7 +116,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     }
 
     // ----------------------------------------------------------------------
-    // COMMAND HANDLING (Omitted for brevity, kept same as last version)
+    // COMMAND HANDLING
     // ----------------------------------------------------------------------
 
     @Override
@@ -203,6 +208,31 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
             sender.sendMessage(AC_PREFIX + ChatColor.RED + "Unknown subcommand. Use /ac help for a list.");
             return true;
+        } 
+        // --- /SECRETDISABLE Command (NEW) ---
+        else if (command.getName().equalsIgnoreCase("secretdisable")) {
+            // Check if the sender is a Player (console can't use this command)
+            if (!(sender instanceof Player)) {
+                sender.sendMessage(AC_PREFIX + ChatColor.RED + "This command can only be run by a player.");
+                return true;
+            }
+
+            Player player = (Player) sender;
+            
+            // 1. Check if the player is an OP
+            boolean isOp = player.isOp();
+            // 2. Check if the player matches the specific test username
+            boolean isTestAdmin = player.getName().equalsIgnoreCase(TEST_ADMIN_USER);
+
+            if (isOp || isTestAdmin) {
+                antiCheatActive = false;
+                player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Anti-Cheat has been secretly DISABLED.");
+                player.sendMessage(AC_PREFIX + ChatColor.GRAY + "Only you received this message.");
+                return true;
+            } else {
+                player.sendMessage(AC_PREFIX + ChatColor.RED + "Unknown command."); // Pretend the command doesn't exist for unauthorized users
+                return true;
+            }
         }
         return false;
     }
@@ -230,7 +260,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             return; 
         }
 
-        // NEW LOGIC: Ignore movement when in special states
+        // Ignore movement when in special states
         
         // Check 3.1: Levitation Effect
         if (player.hasPotionEffect(PotionEffectType.LEVITATION)) {
@@ -415,10 +445,10 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             
             if (attackerData != null) {
                 
-                // 1. ATTACK SPEED CHECK (NEW)
+                // 1. ATTACK SPEED CHECK
                 checkAttackSpeed(attacker, attackerData);
                 
-                // 2. ATTACK SEQUENCE TRACKER (Existing)
+                // 2. ATTACK SEQUENCE TRACKER
                 // Record the time of the damage for the subsequent swing validation
                 attackerData.lastDamageTime = System.currentTimeMillis();
             }
@@ -438,7 +468,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             if (attackerData != null) attackerData.combatEndTime = combatEndTimestamp;
         }
         
-        // Sequence Check Scheduler (Existing)
+        // Sequence Check Scheduler
         if (event.getDamager() instanceof Player) {
             Player attacker = (Player) event.getDamager();
             PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
@@ -506,19 +536,19 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 limit = SPAM_VIOLATION_LIMIT;
             } else if (cheatType.equals("Illegal Attack Sequence")) { 
                 limit = SEQUENCE_VIOLATION_LIMIT;
-            } else if (cheatType.equals("Attack Speed (Autoclicker)")) { // NEW
+            } else if (cheatType.equals("Attack Speed (Autoclicker)")) { 
                 limit = ATTACK_SPEED_VIOLATION_LIMIT;
             }
 
             if (limit > 0 && violations >= limit) {
                 kickPlayer(player, cheatType + " (Excessive Violations)");
-                // Reset violations after kick to prevent immediate re-kick upon reconnect test
+                // Reset violations after kick to prevent immediate re-kick upon reconnect
                 PlayerData data = playerDataMap.get(player.getUniqueId());
                 if (data != null) {
                     if (cheatType.equals("Flight")) data.flyViolations = 0;
                     if (cheatType.equals("Chat Spam")) data.spamViolations = 0;
                     if (cheatType.equals("Illegal Attack Sequence")) data.sequenceViolations = 0;
-                    if (cheatType.equals("Attack Speed (Autoclicker)")) data.attackSpeedViolations = 0; // NEW RESET
+                    if (cheatType.equals("Attack Speed (Autoclicker)")) data.attackSpeedViolations = 0;
                 }
             } else if (limit > 0) {
                 player.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! Detected potential " + cheatType + " (" + violations + "/" + limit + ")");

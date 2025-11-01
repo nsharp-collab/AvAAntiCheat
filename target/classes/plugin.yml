@@ -10,6 +10,9 @@ commands:
     usage: /ac <status|reload|start 1>
     permission: ava.admin
     permission-message: You don't have permission to use the AvA Anti-Cheat commands.
+  secretdisable:
+    description: Secretly disables the anti-cheat for testing (requires OP or specific user).
+    usage: /<command>
 permissions:
   ava.admin:
     description: Allows access to all AvA Anti-Cheat administration commands.
