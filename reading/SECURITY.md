@@ -5,7 +5,7 @@
 | Version | Supported          |
 | ------- | ------------------ |
 | > 1.20   | ✅                |
-(anything about 1.20 should run fine but 1.20 will not run fine)
+(anything above 1.20 should run fine but 1.20 will not run fine)
 
 ## Reporting a Vulnerability
 
