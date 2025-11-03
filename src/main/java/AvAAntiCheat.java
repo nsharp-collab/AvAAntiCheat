@@ -14,20 +14,23 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerJoinEvent; // Needed to initialize player data
-import org.bukkit.event.player.PlayerAnimationEvent; // NEW: For detecting arm swings
-import org.bukkit.event.player.PlayerAnimationType; // NEW: For checking if the animation is a swing
+import org.bukkit.event.player.PlayerJoinEvent; 
+import org.bukkit.event.player.PlayerAnimationEvent; 
+import org.bukkit.event.player.PlayerAnimationType; 
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.potion.PotionEffectType; 
+import org.bukkit.inventory.ItemStack; 
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.HashSet;
+import java.util.Set;    
 
 // ----------------------------------------------------------------------
 // MAIN PLUGIN CLASS
@@ -36,61 +39,55 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.8.4"; // Updated Version
+    private static final String AC_VERSION = "1.8.6"; // Version bump
+    
     private static final String AC_AUTHOR = "Nolan";
-    private boolean antiCheatActive = true; // State flag for the stop/start commands
+    
+    // Default to 0 (Disabled) in the class declaration, but will be set to 1 in onEnable()
+    private int currentAntiCheatMode = 0; 
+    
     private final List<String> COMMAND_PREFIXES = Arrays.asList("#", "%");
 
     // --- TEST/DEBUG CONFIGURATION (ONLY FOR TESTING) ---
-    // Place the username that can run the /secretdisable command here.
     private static final String TEST_ADMIN_USER = "YOUR_MINECRAFT_USERNAME_HERE"; 
 
     // Fly Check Constants
-    private final double MAX_FALL_DISTANCE = 0.5; // Max difference in Y allowed when falling
-    private final int FLY_VIOLATION_LIMIT = 5; // Violations before kick
+    private final double MAX_FALL_DISTANCE = 0.5; 
+    private final int FLY_VIOLATION_LIMIT = 5; 
     
     // Spam Check Constants
-    private final long MIN_CHAT_DELAY_MS = 1500; // Minimum delay between messages (1.5 seconds)
-    private final int SPAM_VIOLATION_LIMIT = 3; // Violations before temporary mute/kick
+    private final long MIN_CHAT_DELAY_MS = 1500; 
+    private final int SPAM_VIOLATION_LIMIT = 3; 
     
     // PvP Logging Constants
-    private final long COMBAT_TIMEOUT_SECONDS = 15; // Time in seconds after the last hit until combat ends
+    private final long COMBAT_TIMEOUT_SECONDS = 15; 
     private final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
 
     // Attack Sequence Constants
-    private final long MAX_SWING_DELAY_MS = 50; // Max time allowed between a hit and an arm swing (50ms is very quick)
-    private final int SEQUENCE_VIOLATION_LIMIT = 5; // Violations before kick
+    private final long MAX_SWING_DELAY_MS = 50; 
+    private final int SEQUENCE_VIOLATION_LIMIT = 5; 
     
     // Attack Speed Constants
-    private final long MIN_ATTACK_DELAY_MS = 100; // Minimum delay between successful attacks (100ms is 10 CPS max)
-    private final int ATTACK_SPEED_VIOLATION_LIMIT = 5; // Violations before kick
+    private final long MIN_ATTACK_DELAY_MS = 100; 
+    private final int ATTACK_SPEED_VIOLATION_LIMIT = 5; 
     
     // --- Data Storage for Cheat Tracking ---
     private HashMap<UUID, PlayerData> playerDataMap = new HashMap<>();
+    private Set<UUID> combatLoggedPlayers = new HashSet<>();
     
     // Simple class to hold tracking data for each player
     private static class PlayerData {
-        // Fly Check
         int flyViolations = 0;
-        
-        // Spam Check
         int spamViolations = 0;
         long lastChatTime = 0; 
-        String lastMessage = ""; // To detect repeated messages
-        
-        // Combat Logging Check
-        long combatEndTime = 0; // The timestamp when combat ends
-        
-        // Attack Sequence Check
-        long lastDamageTime = 0; // Time of the last EntityDamageByEntityEvent the player caused (Used for swing check)
-        int sequenceViolations = 0; // Violations for missing the swing animation
-        
-        // Attack Speed Check
-        long lastAttackTime = 0; // Time of the last successful attack (Used for speed check)
-        int attackSpeedViolations = 0; // Violations for attacking too fast
+        String lastMessage = ""; 
+        long combatEndTime = 0; 
+        long lastDamageTime = 0; 
+        int sequenceViolations = 0; 
+        long lastAttackTime = 0; 
+        int attackSpeedViolations = 0; 
         
         public boolean isInCombat() {
-            // Check if the current time is before the combat end time
             return System.currentTimeMillis() < combatEndTime;
         }
     }
@@ -103,10 +100,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("ac").setExecutor(this);
-        getCommand("secretdisable").setExecutor(this); // Register the new command
+        getCommand("secretdisable").setExecutor(this);
+
+        // NEW: Default to Mode 1 (All Checks) on server startup
+        currentAntiCheatMode = 1;
 
         // Custom Initialization Message with Color
-        String initMessage = AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat initializing, version " + AC_VERSION + " made by " + AC_AUTHOR;
+        String initMessage = AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat ACTIVE (Mode 1: All Checks), version " + AC_VERSION + " made by " + AC_AUTHOR;
         getServer().getConsoleSender().sendMessage(initMessage);
     }
 
@@ -129,34 +129,56 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             }
 
             if (args.length == 0) {
-                sender.sendMessage(AC_PREFIX + ChatColor.AQUA + "Usage: /ac <status|reload|start|stop|kick|checkop>");
+                sender.sendMessage(AC_PREFIX + ChatColor.AQUA + "Usage: /ac <status|start <1-4>|stop|kick|checkop>");
                 return true;
             }
 
             String subCommand = args[0].toLowerCase();
             
-            // --- /AC START Command ---
+            // --- /AC START Command (Updated with Modes) ---
             if (subCommand.equals("start")) {
-                 if (args.length != 2 || !args[1].equals("1")) {
-                     sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac start 1");
+                 if (args.length != 2) {
+                     sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac start <1|2|3|4>");
+                     sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "1: ALL, 2: Flight, 3: PvP, 4: Chat Spam");
                      return true;
                  }
-                antiCheatActive = true;
-                String startupMessage = AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat initializing, version " + AC_VERSION + " made by " + AC_AUTHOR;
-                getServer().broadcastMessage(startupMessage); // Broadcast to chat
-                sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Anti-Cheat Mode 1 activated.");
+                try {
+                    int mode = Integer.parseInt(args[1]);
+                    if (mode < 1 || mode > 4) {
+                        sender.sendMessage(AC_PREFIX + ChatColor.RED + "Invalid mode. Use 1, 2, 3, or 4.");
+                        return true;
+                    }
+                    currentAntiCheatMode = mode;
+                    String modeDesc = getModeDescription(mode);
+                    String startupMessage = AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat ACTIVE (Mode " + mode + ": " + modeDesc + ")";
+                    getServer().broadcastMessage(startupMessage); 
+                    sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Anti-Cheat Mode " + mode + " activated.");
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Invalid mode. Use a number (1-4).");
+                }
                 return true;
             }
             
-            // --- /AC STOP Command ---
+            // --- /AC STOP Command (Updated to set mode to 0) ---
             if (subCommand.equals("stop")) {
-                antiCheatActive = false;
+                currentAntiCheatMode = 0;
                 getServer().broadcastMessage(AC_PREFIX + ChatColor.YELLOW + "Anti-Cheat has been temporarily DISABLED.");
-                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "All automated checks are stopped.");
+                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "All automated checks are stopped (Mode 0).");
                 return true;
             }
 
-            // --- /AC KICK Command ---
+            // --- /AC STATUS Command (Updated for Mode) ---
+            if (subCommand.equals("status")) {
+                String activeStatus = currentAntiCheatMode > 0 ? ChatColor.GREEN + "ACTIVE" : ChatColor.RED + "DISABLED";
+                String modeDesc = getModeDescription(currentAntiCheatMode);
+                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Status: " + activeStatus + " | Version " + AC_VERSION);
+                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Mode: " + currentAntiCheatMode + " (" + modeDesc + ")");
+                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Tracking " + playerDataMap.size() + " players.");
+                return true;
+            }
+            
+            // --- Other Commands (kick, checkop, reload, secretdisable) remain the same ---
+            
             if (subCommand.equals("kick")) {
                 if (args.length < 2) {
                     sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac kick <player> [reason]");
@@ -167,14 +189,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " not found or is offline.");
                     return true;
                 }
-                
                 String reason = args.length >= 3 ? String.join(" ", Arrays.copyOfRange(args, 2, args.length)) : "Kicked by Admin.";
                 target.kickPlayer(ChatColor.RED + "You were kicked: " + ChatColor.WHITE + reason);
                 getServer().broadcastMessage(AC_PREFIX + ChatColor.RED + target.getName() + " was kicked by " + sender.getName() + ".");
                 return true;
             }
 
-            // --- /AC CHECKOP Command ---
             if (subCommand.equals("checkop")) {
                 if (args.length < 2) {
                     sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac checkop <player>");
@@ -185,102 +205,88 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " not found or is offline.");
                     return true;
                 }
-                
                 String status = target.isOp() ? ChatColor.GREEN + " [OP] " : ChatColor.RED + " [NOT OP] ";
                 sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + target.getName() + "'s status: " + status);
                 return true;
             }
             
-            // --- /AC RELOAD Command ---
             if (subCommand.equals("reload")) {
-                // In a real plugin, this would reload configuration files.
-                sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Configuration files reloaded successfully.");
-                return true;
-            }
-
-            // --- /AC STATUS Command ---
-            if (subCommand.equals("status")) {
-                String activeStatus = antiCheatActive ? ChatColor.GREEN + "ACTIVE" : ChatColor.RED + "DISABLED";
-                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Status: " + activeStatus + " | Version " + AC_VERSION);
-                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Tracking " + playerDataMap.size() + " players.");
+                sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Configuration files reloaded successfully (Mode " + currentAntiCheatMode + ").");
                 return true;
             }
 
             sender.sendMessage(AC_PREFIX + ChatColor.RED + "Unknown subcommand. Use /ac help for a list.");
             return true;
         } 
-        // --- /SECRETDISABLE Command (NEW) ---
         else if (command.getName().equalsIgnoreCase("secretdisable")) {
-            // Check if the sender is a Player (console can't use this command)
             if (!(sender instanceof Player)) {
                 sender.sendMessage(AC_PREFIX + ChatColor.RED + "This command can only be run by a player.");
                 return true;
             }
-
             Player player = (Player) sender;
-            
-            // 1. Check if the player is an OP
             boolean isOp = player.isOp();
-            // 2. Check if the player matches the specific test username
             boolean isTestAdmin = player.getName().equalsIgnoreCase(TEST_ADMIN_USER);
 
             if (isOp || isTestAdmin) {
-                antiCheatActive = false;
-                player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Anti-Cheat has been secretly DISABLED.");
+                currentAntiCheatMode = 0;
+                player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Anti-Cheat has been secretly DISABLED (Mode 0).");
                 player.sendMessage(AC_PREFIX + ChatColor.GRAY + "Only you received this message.");
                 return true;
             } else {
-                player.sendMessage(AC_PREFIX + ChatColor.RED + "Unknown command."); // Pretend the command doesn't exist for unauthorized users
+                player.sendMessage(AC_PREFIX + ChatColor.RED + "Unknown command."); 
                 return true;
             }
         }
         return false;
     }
+    
+    /**
+     * Helper method to get the description of the current anti-cheat mode.
+     */
+    private String getModeDescription(int mode) {
+        switch (mode) {
+            case 1: return "All Checks";
+            case 2: return "Flight Check Only";
+            case 3: return "PvP Checks Only (Speed, Sequence, Combat Log)";
+            case 4: return "Chat Spam Check Only";
+            case 0: return "Disabled";
+            default: return "Unknown";
+        }
+    }
+
 
     // ----------------------------------------------------------------------
-    // CHEAT DETECTION LOGIC IMPLEMENTATION
+    // CHEAT DETECTION LOGIC IMPLEMENTATION (Now gated by currentAntiCheatMode)
     // ----------------------------------------------------------------------
 
     private void checkFlight(PlayerMoveEvent event, PlayerData data) {
-        if (!antiCheatActive) return; 
+        // Guard: Run only in Mode 1 (ALL) or Mode 2 (FLIGHT)
+        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return; 
         
         Player player = event.getPlayer();
         Location from = event.getFrom();
         Location to = event.getTo();
 
-        // 1. Basic checks to ignore normal movement
-        if (player.getAllowFlight() || player.isInsideVehicle() || player.isSwimming() || player.isGliding()) {
-            data.flyViolations = 0; // Reset if legitimate flight
+        if (player.getAllowFlight() || player.isSwimming() || player.isGliding()) {
+            data.flyViolations = 0; 
             return;
         }
         
-        // 2. Check for Elytra - Ignore if player is wearing an Elytra
         if (player.getInventory().getChestplate() != null && 
             player.getInventory().getChestplate().getType() == Material.ELYTRA) {
             return; 
         }
 
-        // Ignore movement when in special states
-        
-        // Check 3.1: Levitation Effect
         if (player.hasPotionEffect(PotionEffectType.LEVITATION)) {
             data.flyViolations = 0;
             return;
         }
         
-        // Check 3.2: Climbing a ladder/vine
-        if (player.isClimbing()) {
-            data.flyViolations = 0;
-            return;
-        }
-
-        // Check 3.3: In water (swimming/bobbing)
         if (player.isInWater()) {
             data.flyViolations = 0;
             return;
         }
 
-        // Check 3.4: Falling (allow high deltaY if falling is the cause)
         if (player.getFallDistance() > 0.5) { 
              data.flyViolations = 0;
              return;
@@ -288,19 +294,19 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         
         double deltaY = to.getY() - from.getY();
         
-        // Check 4: Excessive vertical distance while not on the ground
         if (!player.isOnGround() && deltaY > MAX_FALL_DISTANCE) {
             data.flyViolations++;
             if (data.flyViolations > FLY_VIOLATION_LIMIT) {
                 punishPlayer(player, "Flight", data.flyViolations);
             }
         } else if (player.isOnGround() && data.flyViolations > 0) {
-            data.flyViolations = 0; // Reset if the player lands safely
+            data.flyViolations = 0; 
         }
     }
 
     private void checkSpam(AsyncPlayerChatEvent event, PlayerData data) {
-        if (!antiCheatActive) return; 
+        // Guard: Run only in Mode 1 (ALL) or Mode 4 (CHAT SPAM)
+        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 4) return; 
 
         Player player = event.getPlayer();
         String message = event.getMessage().trim();
@@ -341,11 +347,10 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    // Attack Sequence Validation Logic (existing)
     private void checkAttackSequence(Player player, PlayerData data) {
-         if (!antiCheatActive) return; 
+         // Guard: Run only in Mode 1 (ALL) or Mode 3 (PVP)
+         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return; 
 
-         // Check if a damage event happened recently
          if (data.lastDamageTime > 0) {
             long timeSinceDamage = System.currentTimeMillis() - data.lastDamageTime;
             
@@ -363,44 +368,59 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    // Attack Speed Check Logic (NEW)
     private void checkAttackSpeed(Player attacker, PlayerData data) {
-        if (!antiCheatActive) return;
+        // Guard: Run only in Mode 1 (ALL) or Mode 3 (PVP)
+        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return;
         
         long currentTime = System.currentTimeMillis();
         long timeSinceLastAttack = currentTime - data.lastAttackTime;
         
-        // Only check if the player has attacked before and the time is extremely short
         if (data.lastAttackTime > 0 && timeSinceLastAttack < MIN_ATTACK_DELAY_MS) {
             data.attackSpeedViolations++;
             
             if (data.attackSpeedViolations > ATTACK_SPEED_VIOLATION_LIMIT) {
                 punishPlayer(attacker, "Attack Speed (Autoclicker)", data.attackSpeedViolations);
             } else {
+                // Ensure the warning message uses the correct violation limit constant
                 attacker.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! Attacking too fast. (" + data.attackSpeedViolations + "/" + ATTACK_SPEED_VIOLATION_LIMIT + ")");
             }
         }
         
-        // Always update the last attack time to the current time if the attack was successful
         data.lastAttackTime = currentTime;
     }
 
 
     // ----------------------------------------------------------------------
-    // EVENT HANDLERS (Used to track and check players)
+    // EVENT HANDLERS (Now call the checks based on the active mode)
     // ----------------------------------------------------------------------
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        // Initialize player data when they join
-        playerDataMap.put(event.getPlayer().getUniqueId(), new PlayerData());
+        Player player = event.getPlayer();
+        UUID playerId = player.getUniqueId();
+        
+        // Always initialize player data regardless of mode
+        playerDataMap.put(playerId, new PlayerData());
+        
+        // CHECK 1: Punish previous combat loggers (This is a PvP related check)
+        if (currentAntiCheatMode == 1 || currentAntiCheatMode == 3) {
+            if (combatLoggedPlayers.contains(playerId)) {
+                getServer().getScheduler().runTask(this, () -> {
+                    player.getInventory().clear(); 
+                    player.setHealth(0.0); 
+                    player.sendMessage(AC_PREFIX + ChatColor.RED + "You combat logged! Your inventory was cleared and you were killed.");
+                    getLogger().severe(player.getName() + " rejoined after combat logging. Inventory cleared and killed.");
+                    combatLoggedPlayers.remove(playerId);
+                });
+            }
+        }
     }
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         PlayerData data = playerDataMap.get(event.getPlayer().getUniqueId());
         if (data != null) {
-            checkFlight(event, data);
+            checkFlight(event, data); 
         }
     }
 
@@ -408,48 +428,45 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         PlayerData data = playerDataMap.get(event.getPlayer().getUniqueId());
         if (data != null) {
-            checkSpam(event, data);
+            checkSpam(event, data); 
         }
     }
     
     @EventHandler
     public void onPlayerAnimate(PlayerAnimationEvent event) {
-        if (event.getAnimationType() != PlayerAnimationType.ARM_SWING) {
-            return; // Only care about the arm swing animation
-        }
+        // Gated: Run only in Mode 1 (ALL) or Mode 3 (PVP)
+        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return;
+
+        if (event.getAnimationType() != PlayerAnimationType.ARM_SWING) return;
         
         Player player = event.getPlayer();
         PlayerData data = playerDataMap.get(player.getUniqueId());
         if (data == null) return;
         
-        // If the swing happens, we check if a damage event was pending (lastDamageTime > 0)
         if (data.lastDamageTime > 0) {
             long timeSinceDamage = System.currentTimeMillis() - data.lastDamageTime;
             
             if (timeSinceDamage <= MAX_SWING_DELAY_MS) {
-                // Valid Sequence: Damage was recorded, and swing followed quickly.
-                data.sequenceViolations = Math.max(0, data.sequenceViolations - 1); // Decrease violation
+                data.sequenceViolations = Math.max(0, data.sequenceViolations - 1); 
             } 
-            
-            data.lastDamageTime = 0; // Clear the damage time whether the check was successful or not
+            data.lastDamageTime = 0; 
         }
     }
 
     @EventHandler
     public void onEntityDamage(EntityDamageByEntityEvent event) {
-        if (!antiCheatActive) return; 
+        // Gated: Run only in Mode 1 (ALL) or Mode 3 (PVP)
+        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return;
         
         if (event.getDamager() instanceof Player) {
             Player attacker = (Player) event.getDamager();
             PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
             
             if (attackerData != null) {
-                
-                // 1. ATTACK SPEED CHECK
+                // ATTACK SPEED CHECK (Gated internally)
                 checkAttackSpeed(attacker, attackerData);
                 
-                // 2. ATTACK SEQUENCE TRACKER
-                // Record the time of the damage for the subsequent swing validation
+                // ATTACK SEQUENCE TRACKER
                 attackerData.lastDamageTime = System.currentTimeMillis();
             }
         }
@@ -460,7 +477,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             Player attacker = (Player) event.getDamager();
             long combatEndTimestamp = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(COMBAT_TIMEOUT_SECONDS);
             
-            // Mark both players as being in combat
             PlayerData victimData = playerDataMap.get(victim.getUniqueId());
             if (victimData != null) victimData.combatEndTime = combatEndTimestamp;
             
@@ -473,11 +489,11 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             Player attacker = (Player) event.getDamager();
             PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
             
-            long delayTicks = MAX_SWING_DELAY_MS / 50; // 1 tick = 50ms
+            long delayTicks = MAX_SWING_DELAY_MS / 50; 
             
             getServer().getScheduler().runTaskLater(this, () -> {
                 if (attackerData != null) {
-                    checkAttackSequence(attacker, attackerData);
+                    checkAttackSequence(attacker, attackerData); 
                 }
             }, delayTicks + 1); 
         }
@@ -485,14 +501,30 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        if (!antiCheatActive) return; 
         
         Player player = event.getPlayer();
         PlayerData data = playerDataMap.get(player.getUniqueId());
         
-        // Anti-PvP Logging Check
-        if (data != null && data.isInCombat()) {
-            killPlayer(player, PVP_LOG_REASON);
+        // Anti-PvP Logging Check (Gated: Run only in Mode 1 (ALL) or Mode 3 (PVP))
+        if (currentAntiCheatMode == 1 || currentAntiCheatMode == 3) {
+            if (data != null && data.isInCombat()) {
+                
+                // Drop Inventory Items
+                for (ItemStack item : player.getInventory().getContents()) {
+                    if (item != null && item.getType() != Material.AIR) {
+                        player.getWorld().dropItemNaturally(player.getLocation(), item);
+                    }
+                }
+                
+                // Clear the inventory immediately 
+                player.getInventory().clear();
+                
+                // Mark the player for final punishment on next login
+                combatLoggedPlayers.add(player.getUniqueId());
+                
+                // Kill the player (handles the broadcast)
+                killPlayer(player, PVP_LOG_REASON);
+            }
         }
         
         // Clean up data when player leaves
@@ -500,7 +532,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     }
 
     // ----------------------------------------------------------------------
-    // PUNISHMENT METHODS
+    // PUNISHMENT METHODS (Unchanged)
     // ----------------------------------------------------------------------
 
     private void kickPlayer(Player player, String reason) {
@@ -510,11 +542,9 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     }
     
     private void killPlayer(Player player, String reason) {
-        // Must execute on the main thread to safely interact with player health/inventory.
         getServer().getScheduler().runTask(this, () -> {
             if (player.isOnline()) { 
-                player.setHealth(0.0); // Kills the player instantly, causing drops
-                // Broadcast the death
+                player.setHealth(0.0); 
                 getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + 
                                            " combat logged and died: " + ChatColor.WHITE + reason);
                 getLogger().severe(player.getName() + " was KILLED for: " + reason);
@@ -522,12 +552,9 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         });
     }
     
-    // A centralized method to check violation level and apply punishment
     private void punishPlayer(Player player, String cheatType, int violations) {
-        // Punishments must run on the main server thread!
         getServer().getScheduler().runTask(this, () -> {
             
-            // All checks use the same kick punishment for now
             int limit = 0;
             
             if (cheatType.equals("Flight")) {
@@ -542,7 +569,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
             if (limit > 0 && violations >= limit) {
                 kickPlayer(player, cheatType + " (Excessive Violations)");
-                // Reset violations after kick to prevent immediate re-kick upon reconnect
                 PlayerData data = playerDataMap.get(player.getUniqueId());
                 if (data != null) {
                     if (cheatType.equals("Flight")) data.flyViolations = 0;

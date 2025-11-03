@@ -1,5 +1,5 @@
 name: AvAAntiCheat
-version: 1.21
+version: 1.21 
 main: com.nolan.ava.AvAAntiCheat
 api-version: 1.21
 authors: [Nolan]
@@ -7,7 +7,8 @@ description: An anti-cheat system detecting flight, spam, and PvP logging.
 commands:
   ac:
     description: AvA Anti-Cheat administration commands.
-    usage: /ac <status|reload|start 1>
+    # 2. USAGE CHANGE: Reflects all new subcommands in the Java code
+    usage: /ac <status|start <1-4>|stop|kick <player>|checkop <player>|reload>
     permission: ava.admin
     permission-message: You don't have permission to use the AvA Anti-Cheat commands.
   secretdisable:
