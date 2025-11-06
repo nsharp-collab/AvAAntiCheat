@@ -8,6 +8,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.LivingEntity; // Import for broader entity checks
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -39,7 +40,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.8.6"; // Version bump
+    private static final String AC_VERSION = "1.8.7"; // Version bump
     
     private static final String AC_AUTHOR = "Nolan";
     
@@ -354,6 +355,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
          if (data.lastDamageTime > 0) {
             long timeSinceDamage = System.currentTimeMillis() - data.lastDamageTime;
             
+            // If the time since damage is greater than the allowed swing delay, a swing wasn't recorded in time.
             if (timeSinceDamage > MAX_SWING_DELAY_MS) {
                 data.sequenceViolations++;
                 
@@ -375,6 +377,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         long currentTime = System.currentTimeMillis();
         long timeSinceLastAttack = currentTime - data.lastAttackTime;
         
+        // Check if the time between successful attacks is less than the minimum allowed delay
         if (data.lastAttackTime > 0 && timeSinceLastAttack < MIN_ATTACK_DELAY_MS) {
             data.attackSpeedViolations++;
             
@@ -443,14 +446,25 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         PlayerData data = playerDataMap.get(player.getUniqueId());
         if (data == null) return;
         
+        // **MODIFIED LOGIC:**
+        // Only consider the arm swing as part of a *valid* attack sequence 
+        // if damage was recently recorded (data.lastDamageTime > 0).
         if (data.lastDamageTime > 0) {
             long timeSinceDamage = System.currentTimeMillis() - data.lastDamageTime;
             
+            // If the swing happens quickly after the damage (i.e., it's a valid attack combo)
             if (timeSinceDamage <= MAX_SWING_DELAY_MS) {
+                // Clear the violation counter, indicating a successful attack sequence
                 data.sequenceViolations = Math.max(0, data.sequenceViolations - 1); 
             } 
+            // We clear lastDamageTime regardless, as we only need to check it once per damage event.
             data.lastDamageTime = 0; 
         }
+        
+        // NOTE: No other action is taken here. This ensures that only
+        // swings related to actual damage (tracked in onEntityDamage)
+        // can clear the attack sequence violation counter.
+        // Swings for block-breaking/placing are ignored by this check.
     }
 
     @EventHandler
@@ -463,39 +477,64 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
             
             if (attackerData != null) {
-                // ATTACK SPEED CHECK (Gated internally)
+                // --- THORN/SELF-DAMAGE CHECK ---
+                if (event.getEntity() == attacker) {
+                    // This handles damage the player takes from Thorns (or other self-damage sources)
+                    // We should NOT track this as an attack by the player.
+                    return; 
+                }
+
+                // ATTACK SPEED CHECK 
                 checkAttackSpeed(attacker, attackerData);
                 
-                // ATTACK SEQUENCE TRACKER
+                // ATTACK SEQUENCE TRACKER: Record the time the damage occurred.
                 attackerData.lastDamageTime = System.currentTimeMillis();
             }
         }
         
         // Combat Logging Tracker (Enter Combat)
-        if (event.getEntity() instanceof Player && event.getDamager() instanceof Player) {
+        if (event.getEntity() instanceof Player && event.getDamager() instanceof LivingEntity) {
             Player victim = (Player) event.getEntity();
-            Player attacker = (Player) event.getDamager();
+            LivingEntity damager = (LivingEntity) event.getDamager(); // Use LivingEntity for broader combat checks
+
+            // Only track if a Player damaged the victim or if the victim damaged another Player
+            Player attacker = null;
+            if (damager instanceof Player) {
+                attacker = (Player) damager;
+            } else if (event.getEntity() instanceof Player && event.getDamager() instanceof Player) {
+                attacker = (Player) event.getDamager(); // Redundant, but safe
+            } else {
+                // Ignore combat logging if the damager is a mob/non-player
+                return;
+            }
+
             long combatEndTimestamp = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(COMBAT_TIMEOUT_SECONDS);
             
             PlayerData victimData = playerDataMap.get(victim.getUniqueId());
             if (victimData != null) victimData.combatEndTime = combatEndTimestamp;
             
-            PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
-            if (attackerData != null) attackerData.combatEndTime = combatEndTimestamp;
+            if (attacker != null) {
+                PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
+                if (attackerData != null) attackerData.combatEndTime = combatEndTimestamp;
+            }
         }
         
-        // Sequence Check Scheduler
+        // Sequence Check Scheduler: Schedule the sequence check for the attacker
         if (event.getDamager() instanceof Player) {
             Player attacker = (Player) event.getDamager();
             PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
             
-            long delayTicks = MAX_SWING_DELAY_MS / 50; 
-            
-            getServer().getScheduler().runTaskLater(this, () -> {
-                if (attackerData != null) {
-                    checkAttackSequence(attacker, attackerData); 
-                }
-            }, delayTicks + 1); 
+            // Only schedule if it's not self-damage
+             if (event.getEntity() != attacker) {
+                long delayTicks = MAX_SWING_DELAY_MS / 50; 
+                
+                getServer().getScheduler().runTaskLater(this, () -> {
+                    if (attackerData != null) {
+                        // This check will only pass if lastDamageTime > 0 AND onPlayerAnimate didn't clear it.
+                        checkAttackSequence(attacker, attackerData); 
+                    }
+                }, delayTicks + 1); 
+             }
         }
     }
     
