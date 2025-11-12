@@ -25,7 +25,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.TridentMeta;
+// TridentMeta removed: use ItemMeta.hasEnchant instead
 import org.bukkit.enchantments.Enchantment; // Import for Riptide check
 import org.bukkit.inventory.meta.ItemMeta;
 
@@ -51,7 +51,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.8.9"; // Version bump
+    private static final String AC_VERSION = "1.8.8"; // Version bump
     private static final String AC_AUTHOR = "Nolan";
 
     // Default to 0 (Disabled) in the class declaration, but will be set to 1 in onEnable()
@@ -599,12 +599,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 if (item != null) {
                     if (item.getType() == Material.TRIDENT && item.hasItemMeta()) {
                         ItemMeta meta = item.getItemMeta();
-                        if (meta instanceof TridentMeta && meta.hasEnchant(Enchantment.RIPTIDE)) {
-                            if (attacker.isInWater() || attacker.getWorld().isThundering() || attacker.getWorld().hasStorm()) {
-                                attackerData.isRiptiding = true; 
-                                attackerData.flyViolations = 0;
+                        if (meta != null && meta.hasEnchant(Enchantment.RIPTIDE)) {
+                                if (attacker.isInWater() || attacker.getWorld().isThundering() || attacker.getWorld().hasStorm()) {
+                                    attackerData.isRiptiding = true; 
+                                    attackerData.flyViolations = 0;
+                                }
                             }
-                        }
                     } else if (item.getType().name().equals("MACE")) {
                          attackerData.isWindBursting = true;
                          attackerData.flyViolations = 0;
