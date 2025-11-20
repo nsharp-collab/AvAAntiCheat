@@ -50,7 +50,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.8.9";
+    private static final String AC_VERSION = "1.9";
     private static final String AC_AUTHOR = "Nolan";
 
     private int currentAntiCheatMode = 0;
@@ -553,6 +553,9 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
+    //
+    // --- THIS IS THE FIXED METHOD ---
+    //
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return;
@@ -587,8 +590,14 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     }
                 }
 
-                // ATTACK SPEED CHECK 
-                checkAttackSpeed(attacker, attackerData);
+                // --- FIX: SWEEPING EDGE ---
+                // Only run the speed check if the damage cause is a direct attack,
+                // not a secondary sweep attack.
+                if (event.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
+                    // ATTACK SPEED CHECK 
+                    checkAttackSpeed(attacker, attackerData);
+                }
+                // --- END FIX ---
                 
                 // ATTACK SEQUENCE TRACKER
                 attackerData.lastDamageTime = System.currentTimeMillis();
