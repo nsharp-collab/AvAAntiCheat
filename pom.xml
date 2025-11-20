@@ -5,11 +5,7 @@
     
     <groupId>com.nolan.ava</groupId>
     <artifactId>AvAAntiCheat</artifactId>
-<<<<<<< HEAD
     <version>1.9</version>
-=======
-    <version>1.8.9</version>
->>>>>>> 3cb26091a6fed1afcc8c1386df9291c5722baffa
     
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
