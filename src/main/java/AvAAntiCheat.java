@@ -44,7 +44,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 // ----------------------------------------------------------------------
-// MAIN PLUGIN CLASS
+// MAIN PLUGIN CLASS 
 // ----------------------------------------------------------------------
 public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecutor {
 
