@@ -113,7 +113,7 @@ How did you test it? (Crucially, note if any new check is untested)
 
 Did you follow the AL 2.0 requirements (especially the header requirements)?
 
-Credit for Contributors: All contributors will be credited! The owner (Nolan Sharp) maintains a dedicated list, likely in an AUTHORS.md file in the repository, to ensure everyone who helps out gets recognition for their work.
+Credit for Contributors: All contributors will be credited! The owner (Nolan Sharp) maintains a dedicated list, in an AUTHORS.md file in the repository and there will be a command that will show contributors, to ensure everyone who helps out gets recognition for their work.
 
 Wait for Review: The repository owner (Nolan Sharp) will review your code, check for compatibility, and test it for stability before merging.
 
