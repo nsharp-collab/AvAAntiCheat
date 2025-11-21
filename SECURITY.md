@@ -4,8 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| > 1.20   | ✅                |
-(anything above 1.20 should run fine but 1.20 will not run fine)
+| > 1.21   | ✅                |
+(anything above 1.21 should run fine but 1.21 will not run fine)
 
 ## Reporting a Vulnerability
 If you are reporting a Vulnerability do NOT open a ticket on github or post on social media, insted follow the instuctions below
