@@ -118,4 +118,5 @@ Credit for Contributors: All contributors will be credited! The owner (Nolan Sha
 Wait for Review: The repository owner (Nolan Sharp) will review your code, check for compatibility, and test it for stability before merging.
 
 Thank you again for helping to improve AvAAntiCheat!
+
 ~ Nolan Sharp (project maintainer)
