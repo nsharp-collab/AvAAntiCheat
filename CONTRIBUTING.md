@@ -61,7 +61,7 @@ When you create a brand-new source file:
 You must include the full Apache 2.0 license boilerplate header at the top of the file, replacing the placeholder values ([yyyy] and [name of copyright owner]) with your copyright information. This makes you the primary copyright holder and licensor for that file.
 
 Example for a new file in 2025:
-
+```
 /*
  * Copyright 2025 Your Name or Company Name
  *
@@ -77,14 +77,14 @@ Example for a new file in 2025:
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+```
 
 2. Modification Notices (For Existing Files)
 
 If you modify an existing file created by someone else (or the original owner, Nolan Sharp), you must add a "prominent notice" stating that you changed the file, directly below the original copyright header.
 
 Example:
-
+```
 /*
  * Copyright 2025 Nolan Sharp
  * ... (rest of Nolan Sharp's license header) ...
@@ -93,7 +93,7 @@ Example:
  * **MODIFIED by Your Name on 2025-11-20 to optimize movement checks.**
  * -------------------------------------------------------------
  */
-
+```
 
 3. The NOTICE File
 
