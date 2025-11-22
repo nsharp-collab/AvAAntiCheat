@@ -51,4 +51,5 @@ To help us fix the issue quickly, please include:
 ### Disclaimer
 
 We appreciate the community's help in keeping our server secure. We will strive to fix all reported vulnerabilities as quickly as possible.
+
 ~ Nolan Sharp
