@@ -22,8 +22,8 @@ If applicable, add screenshots to help explain your problem.
 **System information (please complete the following information):**
  - OS: [e.g. Windows]
  - Minecraft client type [e.g Bedrock or Java]
- - Minecraft server type [e.g Bedrock paper server or Java spigot server]
- - Version [e.g. 22]
+ - Minecraft server type [e.g Java Paper server]
+ - Version [e.g. 1.21.10]
 
 **Additional context**
 Add any other context about the problem here.
