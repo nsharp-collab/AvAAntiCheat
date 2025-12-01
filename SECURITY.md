@@ -1,55 +1,40 @@
-## Security Policy
+# Security Policy
 
-This policy outlines the supported server versions and the proper procedure for reporting potential security vulnerabilities.
+This policy outlines the supported server versions and the proper procedure for reporting potential security vulnerabilities for our server-side Minecraft anti-cheat plugin.
 
----
+## Supported Minecraft Server Versions
 
-### Supported Minecraft Server Versions
-
-Our server supports stable versions of **Paper** and its forks (like Purpur).
+Our server supports stable versions of **Paper** and its forks (like Purpur). We recommend always running the latest stable version for optimal security and performance.
 
 | Version | Status | Notes |
-| :---: | :---: | :--- |
-| **1.21.10** | **Supported** | This is the current recommended and tested version. |
-| **Older Versions** | **Unsupported** | versions older then 1.21.5 may contain known security risks and are not actively patched. |
-| **Newer Versions** | **Supported** | New major versions are generally supported shortly after their stable release. |
+| :--- | :--- | :--- |
+| **1.21.10** | Supported | This is the current recommended and tested version. |
+| **Older Versions** | Unsupported | Versions older than 1.21.5 may contain known security risks and are not actively patched. |
+| **Newer Versions** | Supported | New major versions are generally supported shortly after their stable release. |
 
-**Note:** We strongly recommend always running the latest stable version of Paper for optimal security and performance.
-
----
-
-### Reporting a Vulnerability
+## Reporting a Vulnerability (Responsible Disclosure)
 
 If you discover a potential security issue, please follow these steps for responsible disclosure. **Do NOT open a public issue on GitHub, post on social media, or disclose the vulnerability publicly before it is patched.**
 
-#### 1. Minor Vulnerability
+### Preferred Reporting Method
 
-* For minor issues (e.g., small exploits, low-impact bugs), please email us at:
-    * **Email:** `nsharp@willamette.edu`
-* We aim to acknowledge and begin triage for minor reports within **1-2 business days**.
-* IF you don't get a response after 3 business days, please contact my personal email (listed below)
+The **ONLY** approved channel for reporting vulnerabilities is via **GitHub's Private Vulnerability Reporting** feature. This ensures your report remains private and allows us to coordinate a patch efficiently.
 
-#### 2. Critical Vulnerability (Needs Immediate Attention)
+1.  Navigate to the repository's **Security** tab.
+2.  Click the **"Report a vulnerability"** button.
+3.  Fill out the form with the required details listed below.
 
-* For major vulnerabilities (e.g., remote code execution, server crashes, widespread data breaches) that require immediate action:
-    * **Email:** `noland4nolan@gmail.com`
-* **Please only use this personal email for high-priority, critical reports.** We will prioritize these reports for immediate investigation and patching.
+We aim to acknowledge receipt of your report and begin triage within **1-2 business days**.
 
-***
+### What to Include in Your Report
 
-### 📝 What to Include in Your Report
+To help us fix the issue quickly and efficiently, please include the following details in your private report:
 
-To help us fix the issue quickly, please include:
+* A clear description of the **vulnerability** and its potential **impact**.
+* Detailed **steps to reproduce** the issue consistently.
+* Any suggested **mitigations** or patches (if you have them).
+* Your preferred **contact method** if we need more information (e.g., your GitHub username or personal email).
 
-1.  A clear description of the **vulnerability** and its potential **impact**.
-2.  Detailed **steps to reproduce** the issue consistently.
-3.  Any suggested **mitigations** or patches (if you have them).
-4.  Your preferred **contact method** if we need more information.
+## Acknowledgement
 
----
-
-### Disclaimer
-
-We appreciate the community's help in keeping our server secure. We will strive to fix all reported vulnerabilities as quickly as possible.
-
-~ Nolan Sharp
+We appreciate the community's help in keeping Minecraft servers secure. We will strive to fix all reported vulnerabilities as quickly as possible and provide public recognition (unless anonymity is requested) to responsible reporters who allow us time to patch the issue.
