@@ -1,18 +1,70 @@
-# AvAAntiCheat
-This is an anti-cheat I made for Minecraft java servers, it works on servers that use Bukkit/Spigot API and works in minecraft version 1.21.10
-the anti-cheat detects flying, chat spaming, combat logging, auto clicking and some types of packet minipulation. The Anti-Cheat also logs detections even if no action was taken (E.X if it detected someone flying for a small amount of time that would only be there first violation and no action is taken but that will show in the logs)
+# AvAAntiCheat: Simple & Effective Minecraft Anti-Cheat
 
- # Installing 
- Installing the Anti-Cheat isn't hard and is really simple.
- You can either:
- A. Download the .Jar file on github located in either the target folder
- B. DOwnload the .Jar file from Cursed forge (currently the only site the AC is on)
- C. Clone the repository onto your computer (```git clone https://github.com/nsharp-collab/AvAAntiCheat.git```) or into another Github repository then run ```mvn clean package``` then it will be in the target folder. If it fails please make a issue ticket on the offical Github repository
 
- After you have the .Jar file, drag it into your servers plugin folder, then run the server and it should auto install. to make sure it installed correctly you can run /ac status
 
- # Issues
- If you have any issues with the Anti-Cheat, please open an issue on Github
+AvAAntiCheat is a lightweight, easy-to-use **anti-cheat plugin** designed for Minecraft Java servers running on the **Bukkit/Spigot API**. It helps maintain a fair and clean environment for players.
 
-# extras
-If you install the Anti-Cheat into your server and it says "version 1.8.8" when running /ac status or when the server is starting even though the name of the .Jar file says "version 1.8.9" or somthing simular you can either compile it yourself (see step C under the Installing section) or open a Github Issue. If you compile it yourself and it says the same thing it means i probobly forgot to change the version in the code
+It is confirmed to work with **Minecraft version 1.21.10**.
+
+---
+
+## Core Features / Detections
+
+The anti-cheat actively monitors and logs several common unfair advantages:
+
+* **Movement Hacks:** Flying
+* **Combat Evasion:** Combat Logging
+* **Unfair Automation:** Auto Clicking
+* **Chat Abuse:** Chat Spamming
+* **Exploits:** Select types of Packet Manipulation
+
+> **Note on Logging:** The system employs a violation counter. Detections are **logged** (e.g., first violation for minor flying) even if no immediate action is taken, allowing staff to track repeat offenders.
+
+---
+
+## Installation
+
+Installing the plugin is straightforward:
+
+### 1. Download the Plugin File
+
+Choose your preferred method to obtain the `.jar` file:
+
+* **GitHub:** Download the latest compiled version from the **GitHub Releases** page.
+* **Plugin Sites:** Get the `.jar` file from **CurseForge** (or other supported sites).
+* **Manual Compilation (For Developers):**
+    * Clone the repository: `git clone https://github.com/nsharp-collab/AvAAntiCheat.git`
+    * Run the Maven command: `mvn clean package`
+    * The compiled file will be in your local `/target` directory.
+
+### 2. Server Setup
+
+1.  Place the `AvAAntiCheat.jar` file into your server's `/plugins` folder.
+2.  Restart your server.
+3.  Verify installation using the command `/ac status`.
+
+---
+
+## Usage & Commands
+
+For a full list of commands, permissions, and configuration options, please refer to the project **Wiki**.
+
+[https://github.com/nsharp-collab/AvAAntiCheat/wiki/Commands]
+
+---
+
+## Troubleshooting / Known Issues
+
+### Incorrect Version Display
+
+If the `/ac status` command or startup messages report an incorrect Minecraft version (e.g., "1.8.8" when the file name says "1.9"):
+
+* **Reason:** This is typically a display error where the developer forgot to update the version string in the plugin's internal configuration.
+* **Action:** Please create a **GitHub Issue** detailing the version mismatch. The functionality of the anti-cheat itself should remain correct for the listed supported version.
+
+---
+
+## 🤝 Support, Issues, and Contribution
+
+* **Reporting Issues:** If you find a bug, a crash, or a bypass, please open a detailed **Issue Ticket** on GitHub.
+* **Contributing:** Guidelines for submitting feature suggestions and pull requests can be found in the separate **CONTRIBUTING.md** file.
