@@ -64,7 +64,7 @@ If the `/ac status` command or startup messages report an incorrect Minecraft ve
 
 ---
 
-## 🤝 Support, Issues, and Contribution
+## Support, Issues, and Contribution
 
 * **Reporting Issues:** If you find a bug, a crash, or a bypass, please open a detailed **Issue Ticket** on GitHub.
 * **Contributing:** Guidelines for submitting feature suggestions and pull requests can be found in the separate **CONTRIBUTING.md** file.
