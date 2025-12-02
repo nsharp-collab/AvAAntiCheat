@@ -1,18 +1,20 @@
- // Copyright 2025 Nolan Sharp
+/*
+ * Copyright 2025 Nolan Sharp
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-  // Licensed under the Apache License, Version 2.0 (the "License");
-  // you may not use this file except in compliance with the License.
-  // You may obtain a copy of the License at
-
-  //     http://www.apache.org/licenses/LICENSE-2.0
-
-//   Unless required by applicable law or agreed to in writing, software
-//   distributed under the License is distributed on an "AS IS" BASIS,
-//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//  See the License for the specific language governing permissions and
-//  limitations under the License.
-
-// Package declaration (usually matches your project structure)
+// Package declaration
 package com.nolan.ava;
 
 // ----------------------------------------------------------------------
@@ -32,6 +34,8 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
+// --- FIX: ADDED THE REQUIRED IMPORT FOR RIPTIDE ---
+import org.bukkit.event.player.PlayerRiptideEvent; 
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.command.Command;
@@ -64,7 +68,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9";
+    private static final String AC_VERSION = "1.9.1";
     private static final String AC_AUTHOR = "Nolan";
 
     private int currentAntiCheatMode = 0;
@@ -337,7 +341,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             return;
         }
         
-        // CHECK 2: Riptide/Wind Burst bypass (FIXED: Reset violations if flag is active)
+        // CHECK 2: Riptide/Wind Burst bypass (This will now work correctly)
         if (data.isRiptiding || data.isWindBursting) {
             data.flyViolations = 0;
             return;
@@ -529,6 +533,24 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
+    // --- FIX: ADDED NEW EVENT HANDLER FOR RIPTIDE ---
+    /**
+     * This is the correct way to detect Riptide.
+     * It flags the player *when they start* the riptide,
+     * so the onPlayerMove/checkFlight methods know to ignore them.
+     */
+    @EventHandler
+    public void onPlayerRiptide(PlayerRiptideEvent event) {
+        Player player = event.getPlayer();
+        PlayerData data = playerDataMap.get(player.getUniqueId());
+        if (data != null) {
+            data.isRiptiding = true;
+            data.flyViolations = 0; // Reset violations just in case
+        }
+    }
+    // --- END FIX ---
+    
+    
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
         if (event.getEntity() instanceof Player && event.getCause() == EntityDamageEvent.DamageCause.FALL) {
@@ -587,22 +609,20 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     return; 
                 }
 
-                // --- RIPTIDE/WIND BURST FIX: Flag the player and ignore fly checks ---
+                // --- FIX: MOVED THE RIPTIDE CHECK to onPlayerRiptide event ---
+                // The Riptide check was here, but it was incorrect.
+                // We only need to check for Wind Burst here (Mace).
                 ItemStack item = attacker.getInventory().getItemInMainHand();
                 if (item != null) {
-                    if (item.getType() == Material.TRIDENT && item.hasItemMeta()) {
-                        ItemMeta meta = item.getItemMeta();
-                        if (meta != null && meta.hasEnchant(Enchantment.RIPTIDE)) {
-                                if (attacker.isInWater() || attacker.getWorld().isThundering() || attacker.getWorld().hasStorm()) {
-                                    attackerData.isRiptiding = true; 
-                                    attackerData.flyViolations = 0;
-                                }
-                            }
-                    } else if (item.getType().name().equals("MACE")) {
+                    if (item.getType().name().equals("MACE")) {
+                         // This flags the player if they attack *using* the mace
+                         // The onEntityDamage event handles the fall-damage boost
                          attackerData.isWindBursting = true;
                          attackerData.flyViolations = 0;
                     }
                 }
+                // --- END FIX ---
+
 
                 // --- FIX: SWEEPING EDGE ---
                 // Only run the speed check if the damage cause is a direct attack,
@@ -722,7 +742,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
                 kickPlayer(player, cheatType + " detected (" + violations + "/" + limit + ")");
                 logToFile(player.getName(), logMessage);
-                
                 // Reset violations after punishment
                 if (playerDataMap.containsKey(player.getUniqueId())) {
                     PlayerData data = playerDataMap.get(player.getUniqueId());
@@ -735,7 +754,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             } else if (limit > 0) {
                 String warningMessage = "Warning! Detected potential " + cheatType + " (" + violations + "/" + limit + ")";
                 player.sendMessage(AC_PREFIX + ChatColor.RED + warningMessage);
-                // Non-punitive violation logging is handled inside the check methods now.
+                // Non-punitive violation logging is handled inside the check me
             }
         });
     }
