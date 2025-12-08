@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 name: AvAAntiCheat
-version: 1.9.1 
+version: DEV-1.9.1.1 
 main: com.nolan.ava.AvAAntiCheat
 api-version: 1.21
 authors: [Nolan]

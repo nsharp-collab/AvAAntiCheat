@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1.1-DEV] - 2025-12-08
+- **THIS IS A TEST VERSION ONLY** Do not use in an actual server unless you know the security risk's (THERE MAY BE BUGS)
+- **Dev:** Added a configuration system (`config.yml`) so server admins can set the plugin startup mode, enable/disable file logging, and change per-cheat kick limits.
+- **Dev:** Made violation limits configurable at runtime (`flight`, `chat-spam`, `sequence`, `attack-speed`).
+- **Dev:** `logToFile` now respects `enable-logging` and the log file is only created when logging is enabled.
+- **Test:** Performed local compile/fix cycle to replace hard-coded constants with config-backed fields.
+
 ## [1.9.1] - 2025-12-02
 
 - **Fix:** Corrected a major bug where players using the Riptide enchantment were incorrectly flagged and kicked for flying.

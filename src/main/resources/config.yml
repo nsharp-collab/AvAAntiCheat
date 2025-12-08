@@ -1,0 +1,15 @@
+## AvA Anti-Cheat default configuration
+# default-mode: plugin startup mode (0=Disabled, 1=All, 2=Flight, 3=PvP, 4=Chat Spam)
+default-mode: 1
+
+# enable-logging: when true the plugin writes to `plugins/AvAAntiCheat/anticheat_log.txt`
+enable-logging: true
+
+# kick-limits: number of offenses of each type required before an automatic kick
+kick-limits:
+  flight: 5
+  chat-spam: 5
+  sequence: 5
+  attack-speed: 5
+
+# Note: Adjust these values to tune punishment sensitivity.

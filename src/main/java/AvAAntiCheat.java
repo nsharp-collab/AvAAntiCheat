@@ -68,7 +68,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9.1";
+    private static final String AC_VERSION = "DEV-1.9.1.1";
     private static final String AC_AUTHOR = "Nolan";
 
     private int currentAntiCheatMode = 0;
@@ -77,11 +77,11 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // Fly Check Constants
     private final double MAX_FALL_DISTANCE = 0.5;
-    private final int FLY_VIOLATION_LIMIT = 5;
+    private int flyViolationLimit = 5;
 
     // Spam Check Constants
     private final long MIN_CHAT_DELAY_MS = 1500;
-    private final int SPAM_VIOLATION_LIMIT = 5;
+    private int spamViolationLimit = 5;
 
     // PvP Logging Constants
     private final long COMBAT_TIMEOUT_SECONDS = 15;
@@ -89,11 +89,14 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // Attack Sequence Constants
     private final long MAX_SWING_DELAY_MS = 200;
-    private final int SEQUENCE_VIOLATION_LIMIT = 5;
+    private int sequenceViolationLimit = 5;
 
     // Attack Speed Constants
     private final long MIN_ATTACK_DELAY_MS = 200;
-    private final int ATTACK_SPEED_VIOLATION_LIMIT = 5;
+    private int attackSpeedViolationLimit = 5;
+
+    // Toggle file logging (configurable)
+    private boolean enableFileLogging = true;
 
     // --- Data Storage for Cheat Tracking ---
     private HashMap<UUID, PlayerData> playerDataMap = new HashMap<>();
@@ -130,25 +133,38 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     @Override
     public void onEnable() {
+        // Load default config (creates config.yml from resources if missing)
+        saveDefaultConfig();
+
+        // Read configurable values
+        currentAntiCheatMode = getConfig().getInt("default-mode", 1);
+        enableFileLogging = getConfig().getBoolean("enable-logging", true);
+        flyViolationLimit = getConfig().getInt("kick-limits.flight", flyViolationLimit);
+        spamViolationLimit = getConfig().getInt("kick-limits.chat-spam", spamViolationLimit);
+        sequenceViolationLimit = getConfig().getInt("kick-limits.sequence", sequenceViolationLimit);
+        attackSpeedViolationLimit = getConfig().getInt("kick-limits.attack-speed", attackSpeedViolationLimit);
+
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("ac").setExecutor(this);
         getCommand("secretdisable").setExecutor(this);
 
-        // NEW: Initialize Log File
-        logFile = new File(getDataFolder(), "anticheat_log.txt");
-        if (!logFile.exists()) {
-            getDataFolder().mkdirs();
-            try {
-                logFile.createNewFile();
-            } catch (IOException e) {
-                getLogger().severe("Could not create anticheat_log.txt: " + e.getMessage());
+        // Initialize log file only if enabled
+        if (enableFileLogging) {
+            logFile = new File(getDataFolder(), "anticheat_log.txt");
+            if (!logFile.exists()) {
+                getDataFolder().mkdirs();
+                try {
+                    logFile.createNewFile();
+                } catch (IOException e) {
+                    getLogger().severe("Could not create anticheat_log.txt: " + e.getMessage());
+                }
             }
+        } else {
+            logFile = null;
         }
-        
-        currentAntiCheatMode = 1;
 
         // Custom Initialization Message with Color
-        String initMessage = AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat ACTIVE (Mode 1: All Checks), version " + AC_VERSION + " made by " + AC_AUTHOR;
+        String initMessage = AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat ACTIVE (Mode " + currentAntiCheatMode + ": " + getModeDescription(currentAntiCheatMode) + "), version " + AC_VERSION + " made by " + AC_AUTHOR;
         getServer().getConsoleSender().sendMessage(initMessage);
         logToFile("SYSTEM", "Plugin Enabled (Version " + AC_VERSION + ")");
     }
@@ -167,6 +183,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
      * Writes a log message to the anticheat log file.
      */
     private void logToFile(String source, String message) {
+        if (!enableFileLogging || logFile == null) return;
         try (FileWriter fw = new FileWriter(logFile, true)) {
             String timestamp = DATE_FORMAT.format(new Date());
             fw.write("[" + timestamp + "] [" + source + "] " + message + "\n");
@@ -370,7 +387,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 
                 logToFile(player.getName(), "CHECK:Flight VIO=" + data.flyViolations + " Y=" + String.format("%.3f", deltaY));
                 
-                if (data.flyViolations > FLY_VIOLATION_LIMIT) {
+                if (data.flyViolations > flyViolationLimit) {
                     punishPlayer(player, "Flight", data.flyViolations);
                 }
             }
@@ -426,12 +443,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 String repeatMsg = "Avoid repeating the same message quickly!";
                 String warningMessage = data.spamViolations > 2 ? repeatMsg : rateLimitMsg;
                 
-                player.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! (" + data.spamViolations + "/" + SPAM_VIOLATION_LIMIT + ") " + warningMessage);
+                player.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! (" + data.spamViolations + "/" + spamViolationLimit + ") " + warningMessage);
             }
         }
 
         // Apply punishment if violations are too high
-        if (data.spamViolations > SPAM_VIOLATION_LIMIT) {
+           if (data.spamViolations > spamViolationLimit) {
              punishPlayer(player, "Chat Spam", data.spamViolations);
              data.spamViolations = 0; 
         } else if (!violated) {
@@ -452,7 +469,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 
                 logToFile(player.getName(), "CHECK:Sequence VIO=" + data.sequenceViolations + " Delay=" + timeSinceDamage + "ms");
                 
-                if (data.sequenceViolations > SEQUENCE_VIOLATION_LIMIT) {
+                if (data.sequenceViolations > sequenceViolationLimit) {
                     punishPlayer(player, "Illegal Attack Sequence", data.sequenceViolations);
                 } else {
                     player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Warning: Suspicious attack sequence detected. (Swing check failed)");
@@ -474,13 +491,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             
             logToFile(attacker.getName(), "CHECK:AttackSpeed VIO=" + data.attackSpeedViolations + " Delay=" + timeSinceLastAttack + "ms");
             
-            if (data.attackSpeedViolations > ATTACK_SPEED_VIOLATION_LIMIT) {
+            if (data.attackSpeedViolations > attackSpeedViolationLimit) {
                 if (currentTime - data.lastAttackSpeedViolationTime > TimeUnit.SECONDS.toMillis(5)) {
                     punishPlayer(attacker, "Attack Speed (Autoclicker)", data.attackSpeedViolations);
                     data.lastAttackSpeedViolationTime = currentTime;
                 }
             } else {
-                attacker.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! Attacking too fast. (" + data.attackSpeedViolations + "/" + ATTACK_SPEED_VIOLATION_LIMIT + ")");
+                attacker.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! Attacking too fast. (" + data.attackSpeedViolations + "/" + attackSpeedViolationLimit + ")");
             }
         } else if (data.attackSpeedViolations > 0 && timeSinceLastAttack > MIN_ATTACK_DELAY_MS * 2) {
              data.attackSpeedViolations = Math.max(0, data.attackSpeedViolations - 1);
@@ -722,13 +739,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             
             // 1. Determine the correct violation limit
             if (cheatType.equalsIgnoreCase("Flight")) {
-                limit = FLY_VIOLATION_LIMIT;
+                limit = flyViolationLimit;
             } else if (cheatType.equalsIgnoreCase("Chat Spam")) {
-                limit = SPAM_VIOLATION_LIMIT;
+                limit = spamViolationLimit;
             } else if (cheatType.equalsIgnoreCase("Illegal Attack Sequence")) {
-                limit = SEQUENCE_VIOLATION_LIMIT;
+                limit = sequenceViolationLimit;
             } else if (cheatType.equalsIgnoreCase("Attack Speed (Autoclicker)")) {
-                limit = ATTACK_SPEED_VIOLATION_LIMIT;
+                limit = attackSpeedViolationLimit;
             }
 
             // 2. Check for Punishment
