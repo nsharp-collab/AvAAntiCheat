@@ -297,7 +297,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 // Show update info in status
                 if (isUpdateAvailable) {
                     sender.sendMessage(AC_PREFIX + ChatColor.RED + ChatColor.BOLD + "UPDATE AVAILABLE: " + latestVersion);
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Download the latest version from GitHub.");
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Download the latest version from GitHub or any other site where the plugin is avalible.");
                 } else {
                     sender.sendMessage(AC_PREFIX + ChatColor.GRAY + "Plugin is up to date.");
                 }
