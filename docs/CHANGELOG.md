@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.2] - 2025-12-27
+
+- **Dev:** Added a lightweight version-check notification so server operators are informed when the plugin is out of date.
+- **Fix:** Prevented false kicks caused by Breeze charge attacks and related interactions; improved wall-climbing detection to avoid incorrect flags.
+ - **Code:** Implemented new wall-climbing detection logic to better differentiate legitimate climbing from exploit-like behavior, reducing false positives.
+ - **Release:** This version is intended for regular use (not a DEV/TEST build).
+
 ## [1.9.1.1-DEV] - 2025-12-08
 - **THIS IS A TEST VERSION ONLY** Do not use in an actual server unless you know the security risk's (THERE MAY BE BUGS)
 - **Dev:** Added a configuration system (`config.yml`) so server admins can set the plugin startup mode, enable/disable file logging, and change per-cheat kick limits.
