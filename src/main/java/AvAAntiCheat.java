@@ -73,7 +73,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private static final String AC_AUTHOR = "Nolan";
 
     // --- Version Checker Variables ---
-    private static final String GITHUB_VERSION_URL = "https://raw.githubusercontent.com/YourUsername/YourRepo/main/version.txt";
+    private static final String GITHUB_VERSION_URL = "https://raw.githubusercontent.com/nsharp-collab/AvAAntiCheat/refs/heads/main/version.txt";
     private boolean isUpdateAvailable = false;
     private String latestVersion = AC_VERSION;
 
