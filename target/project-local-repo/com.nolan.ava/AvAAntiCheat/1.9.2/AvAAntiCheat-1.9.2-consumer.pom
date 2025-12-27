@@ -15,6 +15,12 @@
       <version>1.21-R0.1-SNAPSHOT</version>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>org.bstats</groupId>
+      <artifactId>bstats-bukkit</artifactId>
+      <version>3.0.2</version>
+      <scope>compile</scope>
+    </dependency>
   </dependencies>
   <repositories>
     <repository>
@@ -29,40 +35,23 @@
         <version>3.12.1</version>
       </plugin>
       <plugin>
-        <artifactId>maven-jar-plugin</artifactId>
-        <version>3.2.0</version>
-        <configuration>
-          <archive>
-            <addMavenDescriptor>false</addMavenDescriptor>
-          </archive>
-        </configuration>
-      </plugin>
-      <plugin>
-        <artifactId>maven-resources-plugin</artifactId>
-        <version>3.3.1</version>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.4.1</version>
         <executions>
           <execution>
-            <id>copy-resources</id>
             <phase>package</phase>
             <goals>
-              <goal>copy-resources</goal>
+              <goal>shade</goal>
             </goals>
-            <configuration>
-              <outputDirectory>${project.build.outputDirectory}</outputDirectory>
-              <resources>
-                <resource>
-                  <directory>src/main/resources</directory>
-                  <filtering>true</filtering>
-                  <includes>
-                    <include>plugin.yml</include>
-                  </includes>
-                </resource>
-              </resources>
-            </configuration>
           </execution>
         </executions>
         <configuration>
-          <encoding>UTF-8</encoding>
+          <relocations>
+            <relocation>
+              <pattern>org.bstats</pattern>
+              <shadedPattern>com.nolan.ava.bstats</shadedPattern>
+            </relocation>
+          </relocations>
         </configuration>
       </plugin>
     </plugins>

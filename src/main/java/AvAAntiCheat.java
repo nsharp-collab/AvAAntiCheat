@@ -44,6 +44,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.inventory.ItemStack;
+import org.bstats.bukkit.Metrics;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -143,30 +144,35 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     // PLUGIN LIFE-CYCLE METHODS
     // ----------------------------------------------------------------------
 
-    @Override
+@Override
     public void onEnable() {
-        // Create plugin folder if it doesn't exist
+        // 1. Create plugin folder if it doesn't exist
         if (!getDataFolder().exists()) {
             getDataFolder().mkdirs();
         }
 
-        // Load configuration
+        // 2. Initialize bStats (Every time the plugin starts)
+        int pluginId = 28550; 
+        Metrics metrics = new Metrics(this, pluginId);
+        
+        // 3. Load configuration
         saveDefaultConfig();
-
+        
+        // 4. Load specific settings from config
         currentAntiCheatMode = getConfig().getInt("default-mode", 1);
         enableFileLogging = getConfig().getBoolean("enable-logging", true);
-        flyViolationLimit = getConfig().getInt("kick-limits.flight", flyViolationLimit);
+        flyViolationLimit = getConfig().getInt("kick-limits.flight", 5);
         spiderViolationLimit = getConfig().getInt("kick-limits.spider", 5); 
-        spamViolationLimit = getConfig().getInt("kick-limits.chat-spam", spamViolationLimit);
-        sequenceViolationLimit = getConfig().getInt("kick-limits.sequence", sequenceViolationLimit);
-        attackSpeedViolationLimit = getConfig().getInt("kick-limits.attack-speed", attackSpeedViolationLimit);
+        spamViolationLimit = getConfig().getInt("kick-limits.chat-spam", 5);
+        sequenceViolationLimit = getConfig().getInt("kick-limits.sequence", 5);
+        attackSpeedViolationLimit = getConfig().getInt("kick-limits.attack-speed", 5);
 
-        // Register events and commands
+        // 5. Register events and commands
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("ac").setExecutor(this);
         getCommand("secretdisable").setExecutor(this);
 
-        // Initialize logging
+        // 6. Initialize logging
         if (enableFileLogging) {
             logFile = new File(getDataFolder(), "anticheat_log.txt");
             if (!logFile.exists()) {
@@ -176,18 +182,16 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     getLogger().severe("Could not create anticheat_log.txt: " + e.getMessage());
                 }
             }
-        } else {
-            logFile = null;
         }
 
-        // Log initial message
-        String initMessage = AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat ACTIVE (Mode " + currentAntiCheatMode + ": " + getModeDescription(currentAntiCheatMode) + "), version " + AC_VERSION + " made by " + AC_AUTHOR;
+        // 7. Log initial message
+        String initMessage = AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat ACTIVE (Mode " + currentAntiCheatMode + "), version " + AC_VERSION;
         getServer().getConsoleSender().sendMessage(initMessage);
         logToFile("SYSTEM", "Plugin Enabled (Version " + AC_VERSION + ")");
 
-        // Run the version check asynchronously
+        // 8. Run the version check asynchronously
         checkVersion();
-    }
+    } 
 
     @Override
     public void onDisable() {
