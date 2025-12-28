@@ -70,7 +70,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9.2"; 
+    private static final String AC_VERSION = "1.9.2.5"; 
     private static final String AC_AUTHOR = "Nolan";
 
     // --- Version Checker Variables ---
@@ -407,8 +407,14 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     }
     
     private boolean isInLiquid(Player player) {
-        Material m = player.getLocation().getBlock().getType();
-        return m == Material.WATER || m == Material.LAVA || m == Material.BUBBLE_COLUMN;
+        Location loc = player.getLocation();
+        Block block = loc.getBlock();
+        Material mCenter = block.getType();
+        Material mBelow = block.getRelative(BlockFace.DOWN).getType();
+        Material mAbove = block.getRelative(BlockFace.UP).getType();
+        return mCenter == Material.WATER || mBelow == Material.WATER || mAbove == Material.WATER
+                || mCenter == Material.LAVA || mBelow == Material.LAVA || mAbove == Material.LAVA
+                || mCenter == Material.BUBBLE_COLUMN || mBelow == Material.BUBBLE_COLUMN || mAbove == Material.BUBBLE_COLUMN;
     }
 
     private void checkSpider(PlayerMoveEvent event, PlayerData data) {
