@@ -4,7 +4,7 @@
 
 **VERSION:** 1.9.3
 
-**COPYRIGHT:** Copyright (c) 2025 Nolan Sharp
+**COPYRIGHT:** Copyright (c) 2025-2026
 
 ---
 
