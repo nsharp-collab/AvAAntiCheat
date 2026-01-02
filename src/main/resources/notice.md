@@ -2,7 +2,7 @@
 
 **PROJECT NAME:** AvA Anti-Cheat
 
-**VERSION:** 1.9.1 
+**VERSION:** 1.9.3
 
 **COPYRIGHT:** Copyright (c) 2025 Nolan Sharp
 
@@ -12,10 +12,15 @@ This software is licensed under the **Apache License, Version 2.0** (the "Licens
 
 ## Third-Party Dependencies and Acknowledgments
 
-This project relies on and is developed as an extension for the **Bukkit/Spigot/Paper API**.
+This project relies on and is developed using the following third-party libraries and APIs:
 
-* This dependency allows the plugin to interact with the Minecraft server environment (e.g., handling player movement, damage events, commands).
-* The underlying server software and its API are typically licensed under the GNU General Public License (GPL) v3.0, but this plugin only uses the public interfaces and does **not** distribute the server implementation code itself.
+* **Bukkit/Spigot/Paper API**
+    * This dependency allows the plugin to interact with the Minecraft server environment, including handling player movement, combat events, and commands.
+    * While the underlying server software is typically licensed under the GPL v3.0, this plugin only utilizes the public interfaces and does not distribute the server implementation code itself.
+* **bStats** (https://bstats.org/)
+    * This project uses bStats to collect anonymous usage metrics to help the developer improve the software.
+    * Collected data includes server version, Java version, and specific plugin configuration data, such as the active Anti-Cheat Mode.
+    * No personally identifiable information is collected.
 
 ---
 The contents of this Notice file are for informational purposes only and do not modify the License.

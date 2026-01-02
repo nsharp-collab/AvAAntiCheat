@@ -8,7 +8,7 @@ Our server supports stable versions of **Paper** and its forks (like Purpur). We
 
 | Version | Status | Notes |
 | :--- | :--- | :--- |
-| **1.21.10** | Supported | This is the current recommended and tested version. |
+| **1.21.11** | Supported | This is the current recommended and tested version. |
 | **Older Versions** | Unsupported | Versions older than 1.21.5 may contain known security risks and are not actively patched. |
 | **Newer Versions** | Supported | New major versions are generally supported shortly after their stable release. |
 

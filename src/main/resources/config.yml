@@ -2,12 +2,44 @@
 # default-mode: plugin startup mode (0=Disabled, 1=All, 2=Flight, 3=PvP, 4=Chat Spam)
 default-mode: 1
 
+# --- Update Settings ---
+# If true, the plugin will download the latest .jar from GitHub when a version mismatch is found.
+# Requires a server restart to apply.
+auto-update: true
+
 # enable-logging: when true the plugin writes to `plugins/AvAAntiCheat/anticheat_log.txt`
 enable-logging: true
+
+# --- Advanced Logging Settings ---
+# How many old log files to keep in the /logs/ folder before deleting the oldest ones.
+# 20 means you will keep the last 20 startups/sessions.
+max-logs: 20
+
+# enabled-checks: Toggle specific checks on or off. 
+# This allows you to customize "Mode 1" or disable specific annoyances.
+# Note: If a mode (e.g. Mode 3 for PvP) is active, but 'combat' is false here, combat checks will not run.
+enabled-checks:
+  flight: true
+  speed: true
+  spider: true
+  chat-spam: true
+  combat: true
+
+# speed-check: Configure the sensitivity of the speed detection
+speed-check:
+  # base-limit: The max horizontal distance allowed per tick for normal walking/sprinting.
+  # Vanilla sprint-jump is roughly 0.6. We add leeway (0.65 or 0.70 recommended).
+  base-limit: 0.65
+  
+  # ice-limit: The max speed allowed while on ice.
+  # Ice allows much faster travel. Increase this to avoid false positives on ice highways.
+  ice-limit: 1.3
 
 # kick-limits: number of offenses of each type required before an automatic kick
 kick-limits:
   flight: 5
+  speed: 10
+  spider: 5
   chat-spam: 5
   sequence: 5
   attack-speed: 5

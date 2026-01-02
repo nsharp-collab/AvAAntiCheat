@@ -1,0 +1,6 @@
+#change log
+# Note: this is diffrent then changelog.md because this is what is shown on servers when the plugin auto updates
+
+verson 1.9.3
+fixed a lot of false detection errors 
+added an auto update system that auto updates the AC when its out of date
