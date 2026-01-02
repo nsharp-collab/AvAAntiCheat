@@ -81,7 +81,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9.3.5";
+    private static final String AC_VERSION = "1.9.3";
     private static final String AC_AUTHOR = "Nolan";
 
     // --- Version Checker & Auto-Update Variables ---
