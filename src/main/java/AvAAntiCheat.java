@@ -637,8 +637,8 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     }
 
     /**
-     * Checks if the player is holding a high mobility item like a Spear (custom), Mace, or Trident.
-     * This handles "Spear" from addons by checking the display name or material name.
+     * Checks if the player is holding a high mobility item like a Spear, Mace, or Trident.
+     * This handles the Spear an other items by checking the display name or material name.
      */
     private boolean isHighMobilityItem(Player player) {
         ItemStack item = player.getInventory().getItemInMainHand();
