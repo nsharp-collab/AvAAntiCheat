@@ -739,7 +739,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             data.flyViolations = 0; 
             return;
         }
-        if (System.currentTimeMillis() - data.lastVelocityTime < 4000) {
+        if (System.currentTimeMillis() - data.lastVelocityTime < 10000) {
             return;
         }
 
@@ -1011,7 +1011,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    @EventHandler
+@EventHandler
     public void onPlayerRiptide(PlayerRiptideEvent event) {
         Player player = event.getPlayer();
         PlayerData data = playerDataMap.get(player.getUniqueId());
@@ -1023,52 +1023,68 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             data.lastVelocityTime = System.currentTimeMillis();
         }
     }
-    
+
     // --- WIND CHARGE & EXPLOSION DETECTION ---
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
         if (event.getEntity() instanceof Player) {
-             Player player = (Player) event.getEntity();
-             PlayerData data = playerDataMap.get(player.getUniqueId());
-             if (data != null) {
-                 // Register velocity/knockback time
-                 data.lastVelocityTime = System.currentTimeMillis();
-                 
-                 // Wind Charge Detection (Explosion Damage)
-                 if (event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION || 
-                     event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
-                     data.lastBreezeBoostTime = System.currentTimeMillis();
-                     data.isWindBursting = true;
-                     data.flyViolations = 0;
-                 }
-                 
-                 // Mace Smash Detection
-                 if (event.getCause() == EntityDamageEvent.DamageCause.FALL && data != null) {
-                    ItemStack item = player.getInventory().getItemInMainHand();
-                    if (item != null && item.getType().name().contains("MACE")) { 
-                         data.isWindBursting = true;
-                         data.lastVelocityTime = System.currentTimeMillis();
-                    }
-                 }
-             }
-        }
-    }
-    
-    // Explicit Wind Charge Projectile Detection
-    @EventHandler
-    public void onProjectileHit(ProjectileHitEvent event) {
-        if (event.getHitEntity() instanceof Player) {
-            Projectile proj = event.getEntity();
-            // Check for Wind Charge projectiles
-            if (proj.getType().name().contains("WIND_CHARGE") || proj.getType().name().contains("BREEZE")) {
-                PlayerData data = playerDataMap.get(event.getHitEntity().getUniqueId());
-                if (data != null) {
+            Player player = (Player) event.getEntity();
+            PlayerData data = playerDataMap.get(player.getUniqueId());
+            if (data != null) {
+                // Register velocity/knockback time
+                data.lastVelocityTime = System.currentTimeMillis();
+
+                // Wind Charge Detection (Explosion Damage)
+                if (event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION || 
+                    event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
                     data.lastBreezeBoostTime = System.currentTimeMillis();
-                    data.lastVelocityTime = System.currentTimeMillis();
                     data.isWindBursting = true;
                     data.flyViolations = 0;
                 }
+
+                // Mace Smash Detection
+                if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
+                    ItemStack item = player.getInventory().getItemInMainHand();
+                    if (item != null && item.getType().name().contains("MACE")) { 
+                        data.isWindBursting = true;
+                        data.lastVelocityTime = System.currentTimeMillis();
+                    }
+                }
             }
+        }
+    }
+
+    // Explicit Wind Charge Projectile Detection (IMPROVED for Radius)
+    @EventHandler
+    public void onProjectileHit(ProjectileHitEvent event) {
+        Projectile proj = event.getEntity();
+
+        // Check if the projectile is a Wind Charge or from a Breeze
+        if (proj.getType().name().contains("WIND_CHARGE") || proj.getType().name().contains("BREEZE")) {
+            Location hitLoc = proj.getLocation();
+
+            // Find players within 4.5 blocks of the blast to account for knockback radius
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (p.getWorld().equals(hitLoc.getWorld()) && p.getLocation().distance(hitLoc) < 4.5) {
+                    PlayerData data = playerDataMap.get(p.getUniqueId());
+                    if (data != null) {
+                        data.lastBreezeBoostTime = System.currentTimeMillis();
+                        data.lastVelocityTime = System.currentTimeMillis();
+                        data.isWindBursting = true;
+                        data.flyViolations = 0; // Immediate reset
+                    }
+                }
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerVelocity(org.bukkit.event.player.PlayerVelocityEvent event) {
+        PlayerData data = playerDataMap.get(event.getPlayer().getUniqueId());
+        if (data != null) {
+            // If the server pushes the player, give them a 4-second grace period
+            data.lastVelocityTime = System.currentTimeMillis();
+            data.flyViolations = 0;
         }
     }
 
