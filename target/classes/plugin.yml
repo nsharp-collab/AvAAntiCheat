@@ -1,5 +1,5 @@
 name: AvAAntiCheat
-version: 1.9.3
+version: 1.9.3.1
 main: com.nolan.ava.AvAAntiCheat
 api-version: 1.21
 authors: [Nolan]

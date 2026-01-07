@@ -1,5 +1,7 @@
 #change log
 # Note: this is diffrent then changelog.md because this is what is shown on servers when the plugin auto updates
+version 1.9.1
+fixed an armor dupe glitch where if someone got combat logged they dropped two sets of armor
 
 verson 1.9.3
 fixed a lot of false detection errors 

@@ -81,7 +81,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9.3";
+    private static final String AC_VERSION = "1.9.3.1";
     private static final String AC_AUTHOR = "Nolan";
 
     // --- Version Checker & Auto-Update Variables ---
@@ -1180,7 +1180,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    @EventHandler
+   @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         PlayerData data = playerDataMap.get(player.getUniqueId());
@@ -1188,16 +1188,16 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         if (checkCombatEnabled && (currentAntiCheatMode == 1 || currentAntiCheatMode == 3)) {
             if (data != null && data.isInCombat()) {
                 // DROP ITEMS LOOP RESTORED
+                // FIX: Used getContents() only. It includes Storage, Armor, and Offhand.
+                // Removing the specific armor loop prevents duplication.
                 for (ItemStack item : player.getInventory().getContents()) {
                     if (item != null && item.getType() != Material.AIR) {
                         player.getWorld().dropItemNaturally(player.getLocation(), item);
                     }
                 }
-                for (ItemStack item : player.getInventory().getArmorContents()) {
-                    if (item != null && item.getType() != Material.AIR) {
-                        player.getWorld().dropItemNaturally(player.getLocation(), item);
-                    }
-                }
+                
+                // --- REMOVED DUPLICATE ARMOR LOOP HERE ---
+
                 player.getInventory().clear();
                 
                 combatLoggedPlayers.add(player.getUniqueId());
