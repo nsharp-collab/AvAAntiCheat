@@ -1,8 +1,7 @@
 #change log
 # Note: this is diffrent then changelog.md because this is what is shown on servers when the plugin auto updates
+version 1.9.3.5
+fixed a false detection error where people would get kicked for using a wind bursting mace
+
 version 1.9.3.1
 fixed an armor dupe glitch where if someone got combat logged they dropped two sets of armor
-
-verson 1.9.3
-fixed a lot of false detection errors 
-added an auto update system that auto updates the AC when its out of date

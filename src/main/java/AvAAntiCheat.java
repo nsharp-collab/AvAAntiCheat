@@ -81,7 +81,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // --- Configuration Constants ---
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9.3.1";
+    private static final String AC_VERSION = "1.9.3.5";
     private static final String AC_AUTHOR = "Nolan";
 
     // --- Version Checker & Auto-Update Variables ---
@@ -735,7 +735,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
         // 3. WIND CHARGE / MACE / SPEAR IMMUNITY
         // Increased immunity time to 4 seconds to account for high arcs
-        if (player.isRiptiding() || data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) {
+        if (player.isRiptiding() || data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 14000)) {
             data.flyViolations = 0; 
             return;
         }

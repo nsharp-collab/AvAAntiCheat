@@ -2,7 +2,7 @@
 
 **PROJECT NAME:** AvA Anti-Cheat
 
-**VERSION:** 1.9.3
+**VERSION:** 1.9.3.5
 
 **COPYRIGHT:** Copyright (c) 2025-2026 Nolan Sharp
 
