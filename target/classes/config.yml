@@ -1,4 +1,8 @@
 ## AvA Anti-Cheat default configuration
+
+# config-version: Do not touch this! The plugin uses it to detect if your config file is outdated.
+config-version: 1
+
 # default-mode: plugin startup mode (0=Disabled, 1=All, 2=Flight, 3=PvP, 4=Chat Spam)
 default-mode: 1
 
@@ -7,7 +11,7 @@ default-mode: 1
 # Requires a server restart to apply.
 auto-update: true
 
-# enable-logging: when true the plugin writes to `plugins/AvAAntiCheat/anticheat_log.txt`
+# enable-logging: when true the plugin writes to `plugins/AvAAntiCheat/logs/`
 enable-logging: true
 
 # --- Advanced Logging Settings ---
@@ -22,6 +26,7 @@ enabled-checks:
   flight: true
   speed: true
   spider: true
+  phase: true
   chat-spam: true
   combat: true
 

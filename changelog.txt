@@ -1,7 +1,5 @@
 #change log
 # Note: this is diffrent then changelog.md because this is what is shown on servers when the plugin auto updates
-version 1.9.3.5
-fixed a false detection error where people would get kicked for using a wind bursting mace
-
-version 1.9.3.1
-fixed an armor dupe glitch where if someone got combat logged they dropped two sets of armor
+Version 1.9.4
+Added phasing detection so if someone phases through a wall it will rubber band them back.
+Fixed some false detections and made some peformence updates

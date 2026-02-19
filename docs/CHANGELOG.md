@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.4] - 2026-02-19
+
+- **New Feature:** Implemented phasing detection that prevents players from passing through walls via packet manipulation or enderpearl clipping. Players caught phasing are rubber-banded back to their previous location.
+- **Dev:** Added debug mode (`/ac debug`) allowing server operators to stream live anti-cheat logs to console for real-time monitoring.
+- **Code:** Refactored logging system to run asynchronously; file I/O no longer blocks the main thread.
+- **Code:** Added config version checking with automatic backup of outdated `config.yml` files to prevent configuration loss during updates.
+- **Dev:** Made `checkPhaseEnabled` configurable in `config.yml` to allow operators to customize phase detection.
+- **Code:** Improved comment clarity throughout codebase for better maintainability.
+- **Build:** Updated version references across `pom.xml`, `plugin.yml`, and source code to v1.9.4.
+
 ## [1.9.2] - 2025-12-27
 
 - **Dev:** Added a lightweight version-check notification so server operators are informed when the plugin is out of date.

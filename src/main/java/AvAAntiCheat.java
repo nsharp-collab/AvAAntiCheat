@@ -16,9 +16,7 @@
 
 package com.nolan.ava;
 
-// ----------------------------------------------------------------------
-// REQUIRED IMPORTS
-// ----------------------------------------------------------------------
+// Grabbing all the necessary Bukkit and Java utilities we need
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.Location;
@@ -74,17 +72,14 @@ import java.util.Date;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
-// ----------------------------------------------------------------------
-// MAIN PLUGIN CLASS 
-// ----------------------------------------------------------------------
 public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecutor {
 
-    // --- Configuration Constants ---
+    // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9.3.5";
+    private static final String AC_VERSION = "1.9.4";
     private static final String AC_AUTHOR = "Nolan";
 
-    // --- Version Checker & Auto-Update Variables ---
+    // Stuff for checking GitHub to see if we have a newer version
     private static final String GITHUB_VERSION_URL = "https://raw.githubusercontent.com/nsharp-collab/AvAAntiCheat/refs/heads/main/version.txt";
     private static final String GITHUB_JAR_URL = "https://github.com/nsharp-collab/AvAAntiCheat/releases/latest/download/AvAAntiCheat.jar";
     private static final String GITHUB_CHANGELOG_URL = "https://raw.githubusercontent.com/nsharp-collab/AvAAntiCheat/refs/heads/main/changelog.txt";
@@ -96,56 +91,55 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     private int currentAntiCheatMode = 0;
 
+    // Prefixes to ignore in the spam checker
     private final List<String> COMMAND_PREFIXES = Arrays.asList("#", "%");
 
-    // --- Configurable Toggles ---
+    // Toggles for our various cheat checks
     private boolean checkFlightEnabled = true;
     private boolean checkSpeedEnabled = true;
     private boolean checkSpiderEnabled = true;
     private boolean checkSpamEnabled = true;
     private boolean checkCombatEnabled = true;
+    private boolean checkPhaseEnabled = true;
 
-    // Fly Check Constants
+    // Some tuning values for our movement checks
     private final double MAX_FALL_DISTANCE = 0.5;
     private int flyViolationLimit = 5;
 
-    // Speed Check Constants
     private double baseSpeedLimit = 0.65;
     private double iceSpeedLimit = 1.3;
     private int speedViolationLimit = 5;
 
-    // Spider Check Constants
     private int spiderViolationLimit = 5;
 
-    // Spam Check Constants
+    // Chat rules
     private final long MIN_CHAT_DELAY_MS = 1500;
     private int spamViolationLimit = 5;
 
-    // PvP Logging Constants
+    // PvP stuff
     private final long COMBAT_TIMEOUT_SECONDS = 15;
     private final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
 
-    // Attack Sequence Constants
     private final long MAX_SWING_DELAY_MS = 200;
     private int sequenceViolationLimit = 5;
 
-    // Attack Speed Constants
     private final long MIN_ATTACK_DELAY_MS = 200;
     private int attackSpeedViolationLimit = 5;
 
-    // --- LOGGING SYSTEM VARIABLES ---
+    // Logging configurations
     private boolean enableFileLogging = true;
+    private boolean debugModeConsole = false; // Toggled via /ac debug
     private File logFolder;
     private File currentLogFile;
     private int maxLogFiles = 20;
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     private static final SimpleDateFormat FILE_NAME_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
 
-    // --- Data Storage ---
+    // Where we store runtime player data
     private HashMap<UUID, PlayerData> playerDataMap = new HashMap<>();
     private Set<UUID> combatLoggedPlayers = new HashSet<>();
 
-    // Simple class to hold tracking data
+    // Just a handy little class to keep track of everyone's behavior
     private static class PlayerData {
         int flyViolations = 0;
         int spiderViolations = 0;
@@ -164,12 +158,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         int attackSpeedViolations = 0;
         long lastAttackSpeedViolationTime = 0;
         
-        // --- NEW MOBILITY TRACKING ---
+        // Handling the fun mobility items so we don't accidentally ban legitimate players
         boolean isGliding = false;
-        long lastGlideTime = 0; // Tracks when they stopped gliding
+        long lastGlideTime = 0; 
         
         boolean isRiptiding = false;
-        boolean isWindBursting = false; // Covers Wind Charge, Breeze, and Mace Smash
+        boolean isWindBursting = false; 
         
         long lastBreezeBoostTime = 0;
         long lastVelocityTime = 0;
@@ -179,70 +173,79 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // ----------------------------------------------------------------------
-    // PLUGIN LIFE-CYCLE METHODS
-    // ----------------------------------------------------------------------
-
     @Override
     public void onEnable() {
-        // 1. Setup Folders
+        // Let's get our folders set up first
         if (!getDataFolder().exists()) getDataFolder().mkdirs();
         
-        // Setup specialized log folder
         logFolder = new File(getDataFolder(), "logs");
         if (!logFolder.exists()) logFolder.mkdirs();
 
-        // 2. Initialize bStats
+        // Booting up bStats
         int pluginId = 28550; 
         Metrics metrics = new Metrics(this, pluginId);
         
-        // 3. Load configuration
+        // Load configuration & check for outdated config
         saveDefaultConfig();
+        
+        int currentConfigVersion = 1; // Update this number in future updates if you change the config structure
+        if (getConfig().getInt("config-version", 0) < currentConfigVersion) {
+            getLogger().warning("Your config.yml is outdated! Renaming to config-old.yml and generating a fresh one...");
+            
+            File configFile = new File(getDataFolder(), "config.yml");
+            File oldConfigFile = new File(getDataFolder(), "config-old.yml");
+            
+            // Delete the old backup if it exists so we can make a new one
+            if (oldConfigFile.exists()) oldConfigFile.delete();
+            
+            if (configFile.renameTo(oldConfigFile)) {
+                saveDefaultConfig(); 
+                reloadConfig();
+            } else {
+                getLogger().severe("Failed to backup outdated config.yml!");
+            }
+        }
+        
         loadConfigValues();
 
-        // 4. Initialize Logging (New Log File Creation & Rotation)
+        // Getting logging ready (now partly async behind the scenes)
         if (enableFileLogging) {
             setupLoggingSession();
         }
 
-        // 5. Register bStats
         try {
             metrics.addCustomChart(new SimplePie("anti_cheat_mode", () -> getModeDescription(currentAntiCheatMode)));
         } catch (Exception e) {
-            getLogger().warning("Failed to register bStats chart: " + e.getMessage());
+            getLogger().warning("Couldn't set up bStats chart: " + e.getMessage());
         }
 
-        // 6. Register events and commands
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("ac").setExecutor(this);
         getCommand("secretdisable").setExecutor(this);
 
-        // 7. Send Word Art Banner (DELAYED for visibility)
-        Bukkit.getScheduler().runTaskLater(this, this::sendStartupBanner, 60L); // 3 Seconds delay
+        // Give the console a few seconds before printing our fancy banner
+        Bukkit.getScheduler().runTaskLater(this, this::sendStartupBanner, 60L);
 
         logToFile("SYSTEM", "Plugin Enabled - Session Started (Version " + AC_VERSION + ")");
 
-        // 8. Run Version Check & Auto-Download
         checkVersionAndDownload();
     } 
 
     private void loadConfigValues() {
-        // Core
+        // Reading all the stuff users can tweak in the config
         currentAntiCheatMode = getConfig().getInt("default-mode", 1);
         
-        // Logging & Updates
         enableFileLogging = getConfig().getBoolean("enable-logging", true);
         maxLogFiles = getConfig().getInt("max-logs", 20);
         autoUpdateEnabled = getConfig().getBoolean("auto-update", true);
         
-        // Checks
         checkFlightEnabled = getConfig().getBoolean("enabled-checks.flight", true);
         checkSpeedEnabled = getConfig().getBoolean("enabled-checks.speed", true);
         checkSpiderEnabled = getConfig().getBoolean("enabled-checks.spider", true);
         checkSpamEnabled = getConfig().getBoolean("enabled-checks.chat-spam", true);
         checkCombatEnabled = getConfig().getBoolean("enabled-checks.combat", true);
+        checkPhaseEnabled = getConfig().getBoolean("enabled-checks.phase", true);
 
-        // Limits
         flyViolationLimit = getConfig().getInt("kick-limits.flight", 5);
         speedViolationLimit = getConfig().getInt("kick-limits.speed", 5);
         spiderViolationLimit = getConfig().getInt("kick-limits.spider", 5); 
@@ -250,7 +253,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         sequenceViolationLimit = getConfig().getInt("kick-limits.sequence", 5);
         attackSpeedViolationLimit = getConfig().getInt("kick-limits.attack-speed", 5);
 
-        // Thresholds
         baseSpeedLimit = getConfig().getDouble("speed-check.base-limit", 0.65);
         iceSpeedLimit = getConfig().getDouble("speed-check.ice-limit", 1.3);
     }
@@ -261,23 +263,17 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         logToFile("SYSTEM", "Plugin Disabled");
     }
 
-    // ----------------------------------------------------------------------
-    // STARTUP VISUALS (WORD ART)
-    // ----------------------------------------------------------------------
-
     private void sendStartupBanner() {
-        // 50 dashes for a standard console width
         String dash = ChatColor.GRAY + "──────────────────────────────────────────────────";
         
         String[] art = {
             dash,
-            // Centered the Art (added spaces to the left) to match the dash width
             ChatColor.GOLD + "         _                       _   ",
             ChatColor.GOLD + "        / \\      __   __      / \\  ",
             ChatColor.GOLD + "       / _ \\     \\ \\ / /     / _ \\ ",
             ChatColor.GOLD + "      / ___ \\     \\ V /     / ___ \\",
             ChatColor.GOLD + "     /_/   \\_\\     \\_/     /_/   \\_\\",
-            " ", // Empty line for spacing
+            " ",
             ChatColor.YELLOW + "  AvA AntiCheat v" + AC_VERSION,
             ChatColor.YELLOW + "  Running on " + Bukkit.getBukkitVersion(),
             ChatColor.YELLOW + "  Author: " + AC_AUTHOR,
@@ -291,12 +287,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // ----------------------------------------------------------------------
-    // LOGGING & ROTATION LOGIC
-    // ----------------------------------------------------------------------
-
     private void setupLoggingSession() {
-        // 1. Create unique file for this start
         String fileName = "log_" + FILE_NAME_FORMAT.format(new Date()) + ".txt";
         currentLogFile = new File(logFolder, fileName);
         
@@ -306,141 +297,129 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             getLogger().severe("Could not create new log file: " + e.getMessage());
         }
 
-        // 2. Rotate logs (Delete oldest if > maxLogFiles)
-        rotateLogs();
+        // Deleting old logs can take a moment if there are a lot, so let's push it off the main thread
+        Bukkit.getScheduler().runTaskAsynchronously(this, this::rotateLogs);
     }
 
     private void rotateLogs() {
         File[] files = logFolder.listFiles((dir, name) -> name.endsWith(".txt"));
         if (files != null && files.length > maxLogFiles) {
-            // Sort by last modified (Oldest first)
             Arrays.sort(files, Comparator.comparingLong(File::lastModified));
             
             int filesToDelete = files.length - maxLogFiles;
             for (int i = 0; i < filesToDelete; i++) {
                 if (files[i].delete()) {
-                    getLogger().info("Deleted old log file: " + files[i].getName());
+                    getLogger().info("Cleaned up an old log file: " + files[i].getName());
                 }
             }
         }
     }
 
+    // Completely moved the actual file writing logic to an async task
     private void logToFile(String source, String message) {
+        // If debug mode is on, echo this directly to the console so admins can watch in real-time
+        if (debugModeConsole) {
+            getServer().getConsoleSender().sendMessage(ChatColor.DARK_GRAY + "[AvA-Debug | " + source + "] " + ChatColor.GRAY + message);
+        }
+
         if (!enableFileLogging || currentLogFile == null) return;
 
-        try (FileWriter fw = new FileWriter(currentLogFile, true)) {
-            String timestamp = DATE_FORMAT.format(new Date());
-            fw.write("[" + timestamp + "] [" + source + "] " + message + "\n");
-        } catch (IOException e) {
-            getLogger().severe("Failed to write to log: " + e.getMessage());
-        }
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try (FileWriter fw = new FileWriter(currentLogFile, true)) {
+                String timestamp = DATE_FORMAT.format(new Date());
+                fw.write("[" + timestamp + "] [" + source + "] " + message + "\n");
+            } catch (IOException e) {
+                getLogger().severe("Uh oh, failed to write to log: " + e.getMessage());
+            }
+        });
     }
-
-    // ----------------------------------------------------------------------
-    // VERSION CHECKER & AUTO DOWNLOADER
-    // ----------------------------------------------------------------------
 
     private void checkVersionAndDownload() {
-     Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-        try {
-            // Check Version
-            try (InputStream in = new URL(GITHUB_VERSION_URL).openStream();
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
-                latestVersion = reader.readLine();
-            }
-
-            // Check Changelog
-            try (InputStream in = new URL(GITHUB_CHANGELOG_URL).openStream();
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
-                 StringBuilder changelogBuilder = new StringBuilder();
-                 String line;
-                 while ((line = reader.readLine()) != null) {
-                     changelogBuilder.append(line).append("\n");
-                 }
-                 if (changelogBuilder.length() > 0) {
-                     updateChangelog = changelogBuilder.toString();
-                 }
-            } catch (Exception ignored) {
-                // Changelog might not exist yet, ignore
-            }
-            
-            if (latestVersion != null) {
-                if (isNewerVersion(AC_VERSION, latestVersion)) {
-                    isUpdateAvailable = true;
-                    getLogger().info("A new version is available: " + latestVersion);
-                    getLogger().info("--- CHANGELOG ---");
-                    getLogger().info(updateChangelog);
-                    getLogger().info("-----------------");
-
-                    if (autoUpdateEnabled) {
-                        downloadUpdate();
-                    }
-                } else {
-                    getLogger().info("You are running the latest version (or a development build).");
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                try (InputStream in = new URL(GITHUB_VERSION_URL).openStream();
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
+                    latestVersion = reader.readLine();
                 }
-            }
-        } catch (IOException e) {
-            getLogger().warning("Could not check for updates: " + e.getMessage());
-        }
-    });
-}
 
-/**
- * Compares two version strings. 
- * Returns true only if the 'online' version is numerically higher than 'current'.
- */
-     private boolean isNewerVersion(String current, String online) {
-      try {
-        String[] currentParts = current.split("\\.");
-        String[] onlineParts = online.split("\\.");
-        int length = Math.max(currentParts.length, onlineParts.length);
-        
-        for (int i = 0; i < length; i++) {
-            int currentVal = i < currentParts.length ? Integer.parseInt(currentParts[i].replaceAll("[^0-9]", "")) : 0;
-            int onlineVal = i < onlineParts.length ? Integer.parseInt(onlineParts[i].replaceAll("[^0-9]", "")) : 0;
-            
-            if (onlineVal > currentVal) return true;  // Online is newer
-            if (currentVal > onlineVal) return false; // Local is newer (Dev build)
-        }
-    } catch (Exception e) {
-        // Fallback to simple check if someone puts a weird character in version.txt
-        return !current.equalsIgnoreCase(online);
+                try (InputStream in = new URL(GITHUB_CHANGELOG_URL).openStream();
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
+                     StringBuilder changelogBuilder = new StringBuilder();
+                     String line;
+                     while ((line = reader.readLine()) != null) {
+                         changelogBuilder.append(line).append("\n");
+                     }
+                     if (changelogBuilder.length() > 0) {
+                         updateChangelog = changelogBuilder.toString();
+                     }
+                } catch (Exception ignored) {
+                    // It's cool if there's no changelog yet
+                }
+                
+                if (latestVersion != null) {
+                    if (isNewerVersion(AC_VERSION, latestVersion)) {
+                        isUpdateAvailable = true;
+                        getLogger().info("A new version is available: " + latestVersion);
+                        getLogger().info("--- CHANGELOG ---");
+                        getLogger().info(updateChangelog);
+                        getLogger().info("-----------------");
+
+                        if (autoUpdateEnabled) {
+                            downloadUpdate();
+                        }
+                    } else {
+                        getLogger().info("You are running the latest version (or a development build).");
+                    }
+                }
+            } catch (IOException e) {
+                getLogger().warning("Could not check for updates: " + e.getMessage());
+            }
+        });
     }
-    return false;
-}
+
+    private boolean isNewerVersion(String current, String online) {
+        try {
+            String[] currentParts = current.split("\\.");
+            String[] onlineParts = online.split("\\.");
+            int length = Math.max(currentParts.length, onlineParts.length);
+            
+            for (int i = 0; i < length; i++) {
+                int currentVal = i < currentParts.length ? Integer.parseInt(currentParts[i].replaceAll("[^0-9]", "")) : 0;
+                int onlineVal = i < onlineParts.length ? Integer.parseInt(onlineParts[i].replaceAll("[^0-9]", "")) : 0;
+                
+                if (onlineVal > currentVal) return true;  
+                if (currentVal > onlineVal) return false; 
+            }
+        } catch (Exception e) {
+            return !current.equalsIgnoreCase(online);
+        }
+        return false;
+    }
 
     private void downloadUpdate() {
-        getLogger().info("Automatically downloading update...");
+        getLogger().info("Automatically pulling down the latest update...");
         
-        // 1. Target the 'update' folder specifically
         File updateFolder = Bukkit.getServer().getUpdateFolderFile();
         if (!updateFolder.exists()) {
             updateFolder.mkdirs();
         }
 
-        // 2. Use the current jar name to ensure the server recognizes the swap
         File targetFile = new File(updateFolder, getFile().getName());
 
         try (InputStream in = new URL(GITHUB_JAR_URL).openStream()) {
-            // 3. Copy to the update folder so it doesn't conflict with the running file
             Files.copy(in, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             
             getLogger().info("Update downloaded to " + targetFile.getPath());
-            getLogger().info("The update will be applied automatically ON THE NEXT RESTART.");
+            getLogger().info("The new version will automatically apply on the next server restart.");
             
-            // Notify admins online
             Bukkit.getScheduler().runTask(this, () -> {
                 Bukkit.broadcast(AC_PREFIX + ChatColor.GREEN + "Plugin update " + latestVersion + " is ready. Restart the server to apply.", "ava.admin");
             });
             
         } catch (IOException e) {
-            getLogger().severe("Failed to auto-download update: " + e.getMessage());
+            getLogger().severe("Man, auto-download failed: " + e.getMessage());
         }
     }
-
-    // ----------------------------------------------------------------------
-    // COMMAND HANDLING
-    // ----------------------------------------------------------------------
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -451,12 +430,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             logToFile(senderName, "Attempted AC command: " + fullCommand);
             
             if (!sender.hasPermission("ava.admin")) {
-                sender.sendMessage(AC_PREFIX + ChatColor.RED + "You do not have permission to use this command.");
+                sender.sendMessage(AC_PREFIX + ChatColor.RED + "You don't have permission to do that.");
                 return true;
             }
 
             if (args.length == 0) {
-                sender.sendMessage(AC_PREFIX + ChatColor.AQUA + "Usage: /ac <status|start <1-4>|stop|kick|checkop|reload>");
+                sender.sendMessage(AC_PREFIX + ChatColor.AQUA + "Usage: /ac <status|start <1-4>|stop|kick|checkop|reload|debug>");
                 return true;
             }
 
@@ -471,7 +450,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 try {
                     int mode = Integer.parseInt(args[1]);
                     if (mode < 1 || mode > 4) {
-                        sender.sendMessage(AC_PREFIX + ChatColor.RED + "Invalid mode. Use 1, 2, 3, or 4.");
+                        sender.sendMessage(AC_PREFIX + ChatColor.RED + "Invalid mode. Stick to 1, 2, 3, or 4.");
                         return true;
                     }
                     currentAntiCheatMode = mode;
@@ -480,7 +459,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Anti-Cheat Mode " + mode + " activated.");
                     logToFile(senderName, "EXECUTED AC Mode " + mode + " (" + modeDesc + ")");
                 } catch (NumberFormatException e) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Invalid mode. Use a number (1-4).");
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Make sure you enter a number (1-4).");
                 }
                 return true;
             }
@@ -489,6 +468,14 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 currentAntiCheatMode = 0;
                 getServer().broadcastMessage(AC_PREFIX + ChatColor.YELLOW + "Anti-Cheat has been temporarily DISABLED.");
                 logToFile(senderName, "EXECUTED AC Mode 0 (Disabled)");
+                return true;
+            }
+
+            // Our new debug command to stream logs right to the console
+            if (subCommand.equals("debug")) {
+                debugModeConsole = !debugModeConsole;
+                sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Console debugging is now " + (debugModeConsole ? "ON" : "OFF") + ".");
+                logToFile(senderName, "Toggled debug mode to " + debugModeConsole);
                 return true;
             }
 
@@ -505,10 +492,10 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     if(autoUpdateEnabled) {
                          sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Auto-downloaded. Restart to apply.");
                     } else {
-                         sender.sendMessage(AC_PREFIX + ChatColor.RED + "Auto-update disabled. Download manually.");
+                         sender.sendMessage(AC_PREFIX + ChatColor.RED + "Auto-update disabled. Go grab it manually.");
                     }
                 } else {
-                    sender.sendMessage(AC_PREFIX + ChatColor.GRAY + "Plugin is up to date.");
+                    sender.sendMessage(AC_PREFIX + ChatColor.GRAY + "Everything is fully up to date.");
                 }
                 return true;
             }
@@ -520,7 +507,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 }
                 Player target = getServer().getPlayer(args[1]);
                 if (target == null) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " not found or is offline.");
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Can't find player " + args[1] + ". Are they offline?");
                     return true;
                 }
                 String reason = args.length >= 3 ? String.join(" ", Arrays.copyOfRange(args, 2, args.length)) : "Kicked by Admin.";
@@ -537,7 +524,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 }
                 Player target = getServer().getPlayer(args[1]);
                 if (target == null) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " not found or is offline.");
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " isn't online.");
                     return true;
                 }
                 String status = target.isOp() ? ChatColor.GREEN + " [OP] " : ChatColor.RED + " [NOT OP] ";
@@ -549,12 +536,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 reloadConfig();
                 loadConfigValues();
                 
-                sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Configuration files reloaded successfully.");
+                sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Configurations reloaded.");
                 logToFile(senderName, "EXECUTED AC reload.");
                 return true;
             }
 
-            sender.sendMessage(AC_PREFIX + ChatColor.RED + "Unknown subcommand. Use /ac help for a list.");
+            sender.sendMessage(AC_PREFIX + ChatColor.RED + "Unknown command. Try /ac for help.");
             return true;
         } 
         else if (command.getName().equalsIgnoreCase("secretdisable")) {
@@ -562,7 +549,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             Player player = (Player) sender;
             if (player.isOp()) {
                 currentAntiCheatMode = 0;
-                player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Anti-Cheat has been secretly DISABLED (Mode 0).");
+                player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Anti-Cheat is now secretly DISABLED (Mode 0).");
                 logToFile(player.getName(), "EXECUTED secretdisable (Mode 0)");
                 return true;
             }
@@ -573,7 +560,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private String getModeDescription(int mode) {
         switch (mode) {
             case 1: return "All Checks (Config Filtered)";
-            case 2: return "Flight/Movement/Speed";
+            case 2: return "Flight/Movement/Speed/Phase";
             case 3: return "PvP Checks";
             case 4: return "Chat Spam";
             case 0: return "Disabled";
@@ -586,16 +573,14 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         if (checkFlightEnabled) sb.append("Fly, ");
         if (checkSpeedEnabled) sb.append("Speed, ");
         if (checkSpiderEnabled) sb.append("Spider, ");
+        if (checkPhaseEnabled) sb.append("Phase, ");
         if (checkCombatEnabled) sb.append("PvP, ");
         if (checkSpamEnabled) sb.append("Spam");
         if (sb.length() == 0) return "None";
         return sb.toString();
     }
 
-    // ----------------------------------------------------------------------
-    // CHEAT DETECTION LOGIC
-    // ----------------------------------------------------------------------
-
+    // Helper to see if someone is brushing up against a wall
     private boolean isNearSolidBlock(Player player) {
         Location loc = player.getLocation();
         Block block = loc.getBlock();
@@ -610,9 +595,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         if (type == Material.LADDER || type == Material.VINE || type == Material.SCAFFOLDING) return true;
         
         String name = type.name();
-        if (name.contains("VINES") || name.contains("VINE")) return true;
-
-        return false;
+        return name.contains("VINES") || name.contains("VINE");
     }
     
     private boolean isIce(Block block) {
@@ -636,18 +619,14 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 || mCenter == Material.BUBBLE_COLUMN || mBelow == Material.BUBBLE_COLUMN || mAbove == Material.BUBBLE_COLUMN;
     }
 
-    /**
-     * Checks if the player is holding a high mobility item like a Spear, Mace, or Trident.
-     * This handles the Spear an other items by checking the display name or material name.
-     */
+    // Checking for things that throw you around
     private boolean isHighMobilityItem(Player player) {
         ItemStack item = player.getInventory().getItemInMainHand();
         if (item == null || item.getType() == Material.AIR) return false;
 
         String matName = item.getType().name();
-        if (matName.contains("MACE") || matName.contains("TRIDENT")) return true;
+        if (matName.contains("MACE") || matName.contains("TRIDENT")) return true; // Tha mace detection was a pain in my ass
         
-        // Check for Custom Items named "Spear" (e.g. Mounts of Maham)
         if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
             String displayName = ChatColor.stripColor(item.getItemMeta().getDisplayName()).toLowerCase();
             if (displayName.contains("spear")) return true;
@@ -656,7 +635,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         return false;
     }
 
-    // --- SPIDER CHECK ---
+    // Stops players from climbing up smooth walls
     private void checkSpider(PlayerMoveEvent event, PlayerData data) {
         if (!checkSpiderEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
@@ -667,7 +646,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             return;
         }
         
-        // Extended Immunity for Wind Charges and Spears
         if (data.isRiptiding || data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) {
             data.spiderTicks = 0;
             return;
@@ -681,7 +659,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         double deltaY = event.getTo().getY() - event.getFrom().getY();
         if (deltaY > 0 && !player.isOnGround() && isNearSolidBlock(player)) {
             Block b = player.getLocation().getBlock();
-            // BEDROCK FIX: Check block below player for ladders too (hitbox offset)
+            // Checking the block below too to avoid flagging Bedrock players hitting weird hitboxes
             if (!isClimbable(b) && !isClimbable(b.getRelative(BlockFace.DOWN))) {
                 data.spiderTicks++;
                 if (data.spiderTicks > 10) {
@@ -700,7 +678,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // --- FLIGHT CHECK ---
+    // Making sure nobody is walking on thin air
     private void checkFlight(PlayerMoveEvent event, PlayerData data) {
         if (!checkFlightEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return; 
@@ -709,22 +687,17 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         Location from = event.getFrom();
         Location to = event.getTo();
 
-        // 1. BEDROCK LADDER FIX:
-        // Bedrock players often appear to be floating above the ladder.
-        // We check the block at feet AND the block directly below.
         if (isClimbable(player.getLocation().getBlock()) || isClimbable(player.getLocation().getBlock().getRelative(BlockFace.DOWN))) {
             data.flyViolations = 0;
             return;
         }
 
-        // 2. ELYTRA GLIDE GRACE PERIOD
         if (player.isGliding()) {
              data.isGliding = true;
              data.lastGlideTime = System.currentTimeMillis();
              data.flyViolations = 0;
              return;
         }
-        // If they stopped gliding less than 3 seconds ago, allow "floating" from momentum
         if (System.currentTimeMillis() - data.lastGlideTime < 3000) {
              data.flyViolations = 0;
              return;
@@ -733,8 +706,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             data.isGliding = false;
         }
 
-        // 3. WIND CHARGE / MACE / SPEAR IMMUNITY
-        // Increased immunity time to 4 seconds to account for high arcs
         if (player.isRiptiding() || data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 14000)) {
             data.flyViolations = 0; 
             return;
@@ -743,7 +714,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             return;
         }
 
-        // Standard Bypass
         if (player.getAllowFlight() || player.isSwimming() || player.hasPotionEffect(PotionEffectType.LEVITATION) || isInLiquid(player) || player.isInsideVehicle()) {
             data.flyViolations = 0; 
             return;
@@ -764,19 +734,17 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // --- SPEED CHECK ---
+    // Checks if the player moves horizontally too fast
     private void checkSpeed(PlayerMoveEvent event, PlayerData data) {
         if (!checkSpeedEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
 
         Player player = event.getPlayer();
         
-        // ELYTRA FIX: Return immediately if gliding
         if (player.isGliding()) {
             data.speedViolations = 0;
             return;
         }
-        // ELYTRA GRACE: If recently gliding, allow speed
         if (System.currentTimeMillis() - data.lastGlideTime < 3000) {
             data.speedViolations = 0;
             return;
@@ -785,8 +753,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         if (player.getAllowFlight() || player.isFlying() || player.isInsideVehicle()) return;
         if (player.isRiptiding()) return;
         
-        // WIND CHARGE / SPEAR IMMUNITY
-        // If they recently used a wind charge or spear, relax speed checks
         if (data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) {
             return;
         }
@@ -826,8 +792,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             }
         }
         
-        // SPEAR / MACE COMPENSATION
-        // If holding a spear/mace, increase speed limit slightly to account for lunges
         if (isHighMobilityItem(player)) {
             speedLimit += 0.6; 
         }
@@ -844,7 +808,36 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // --- SPAM CHECK ---
+    // Prevents phasing through walls via packet manipulation or enderpearl clipping
+    private void checkPhase(PlayerMoveEvent event, PlayerData data) {
+        if (!checkPhaseEnabled) return;
+        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
+
+        Player player = event.getPlayer();
+
+        // Let specators and creative fly-boys skip this
+        if (player.getGameMode().name().contains("SPECTATOR") || player.getAllowFlight()) return;
+
+        Location from = event.getFrom();
+        Location to = event.getTo();
+
+        // No need to run big checks if they only moved their mouse
+        if (from.getBlockX() == to.getBlockX() && from.getBlockY() == to.getBlockY() && from.getBlockZ() == to.getBlockZ()) {
+            return;
+        }
+
+        Block toBlockFeet = to.getBlock();
+
+        // If where they are headed is fully occluding but where they came from is fine, they hit a wall.
+        // We use isOccluding to avoid snapping them back on stairs, slabs, or signs.
+        if (toBlockFeet.getType().isOccluding() && !from.getBlock().getType().isOccluding()) {
+            event.setTo(from); // Pop them right back where they came from (Rubberband)
+            player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't phase through blocks like that!");
+            logToFile(player.getName(), "CHECK:Phase - Prevented phasing into " + toBlockFeet.getType().name());
+        }
+    }
+
+    // Nobody likes a spammer, so let's keep chat clean
     private void checkSpam(AsyncPlayerChatEvent event, PlayerData data) {
         if (!checkSpamEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 4) return; 
@@ -878,8 +871,8 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
         if (violated) {
             if (data.spamViolations >= 2) {
-                String rateLimitMsg = "Wait " + String.format("%.1f", (MIN_CHAT_DELAY_MS - timeElapsed) / 1000.0) + "s before chatting again!";
-                String repeatMsg = "Avoid repeating the same message quickly!";
+                String rateLimitMsg = "Hold up! Wait " + String.format("%.1f", (MIN_CHAT_DELAY_MS - timeElapsed) / 1000.0) + "s before chatting again!";
+                String repeatMsg = "Please try to avoid repeating the exact same message quickly!";
                 String warningMessage = data.spamViolations > 2 ? repeatMsg : rateLimitMsg;
                 player.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! (" + data.spamViolations + "/" + spamViolationLimit + ") " + warningMessage);
             }
@@ -894,7 +887,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    // --- COMBAT CHECKS ---
+    // Making sure they aren't sending weird hit packets
     private void checkAttackSequence(Player player, PlayerData data) {
          if (!checkCombatEnabled) return;
          if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return; 
@@ -914,6 +907,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
+    // Auto-clicker detection
     private void checkAttackSpeed(Player attacker, PlayerData data) {
         if (!checkCombatEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return;
@@ -930,17 +924,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     data.lastAttackSpeedViolationTime = currentTime;
                 }
             } else {
-                attacker.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! Attacking too fast. (" + data.attackSpeedViolations + "/" + attackSpeedViolationLimit + ")");
+                attacker.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! You're attacking too fast. (" + data.attackSpeedViolations + "/" + attackSpeedViolationLimit + ")");
             }
         } else if (data.attackSpeedViolations > 0 && timeSinceLastAttack > MIN_ATTACK_DELAY_MS * 2) {
              data.attackSpeedViolations = Math.max(0, data.attackSpeedViolations - 1);
         }
         data.lastAttackTime = currentTime;
     }
-
-    // ----------------------------------------------------------------------
-    // EVENT LISTENERS
-    // ----------------------------------------------------------------------
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -950,7 +940,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         playerDataMap.put(playerId, new PlayerData());
         logToFile(player.getName(), "Player joined (IP: " + player.getAddress().getHostString() + ")");
 
-        // --- Update Notification Logic ---
         if (player.isOp() && isUpdateAvailable) {
             getServer().getScheduler().runTaskLater(this, () -> {
                 player.sendMessage(AC_PREFIX + ChatColor.RED + ChatColor.BOLD + "AVANT ANTICHEAT UPDATE AVAILABLE!");
@@ -958,14 +947,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Latest Version: " + ChatColor.GREEN + latestVersion);
                 player.sendMessage(AC_PREFIX + ChatColor.GRAY + "Changelog:\n" + updateChangelog);
                 if (autoUpdateEnabled) {
-                     player.sendMessage(AC_PREFIX + ChatColor.GREEN + "The update has been auto-downloaded. Restart to apply.");
+                     player.sendMessage(AC_PREFIX + ChatColor.GREEN + "The update has been auto-downloaded. Just restart whenever to apply.");
                 } else {
                      player.sendMessage(AC_PREFIX + ChatColor.GRAY + "Please download the update from GitHub.");
                 }
-            }, 60L); // 3-second delay
+            }, 60L);
         }
 
-        // --- Combat Logging Punishment (Kill on Rejoin) ---
         if (currentAntiCheatMode == 1 || currentAntiCheatMode == 3) {
             if (combatLoggedPlayers.contains(playerId)) {
                 getServer().getScheduler().runTask(this, () -> {
@@ -982,6 +970,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
+        
         if (player.getGameMode().toString().contains("CREATIVE") || player.getGameMode().toString().contains("SPECTATOR")) return;
         
         PlayerData data = playerDataMap.get(player.getUniqueId());
@@ -989,17 +978,17 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             checkSpider(event, data);
             checkFlight(event, data);
             checkSpeed(event, data); 
+            checkPhase(event, data);
             
             if (data.isRiptiding && player.isOnGround()) data.isRiptiding = false;
             
-            // Only reset wind bursting if they've been on ground for a bit to avoid "bouncing" flags
+            // Wait a sec before turning off wind bursting so we don't flag them on the bounce
             if (data.isWindBursting && player.isOnGround() && (System.currentTimeMillis() - data.lastBreezeBoostTime > 1000)) {
                 data.isWindBursting = false;
             }
         }
     }
 
-    // --- ELYTRA FIX ---
     @EventHandler
     public void onGlideToggle(EntityToggleGlideEvent event) {
         if (event.getEntity() instanceof Player) {
@@ -1011,7 +1000,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-@EventHandler
+    @EventHandler
     public void onPlayerRiptide(PlayerRiptideEvent event) {
         Player player = event.getPlayer();
         PlayerData data = playerDataMap.get(player.getUniqueId());
@@ -1024,17 +1013,14 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // --- WIND CHARGE & EXPLOSION DETECTION ---
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
         if (event.getEntity() instanceof Player) {
             Player player = (Player) event.getEntity();
             PlayerData data = playerDataMap.get(player.getUniqueId());
             if (data != null) {
-                // Register velocity/knockback time
                 data.lastVelocityTime = System.currentTimeMillis();
 
-                // Wind Charge Detection (Explosion Damage)
                 if (event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION || 
                     event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
                     data.lastBreezeBoostTime = System.currentTimeMillis();
@@ -1042,7 +1028,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     data.flyViolations = 0;
                 }
 
-                // Mace Smash Detection
                 if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
                     ItemStack item = player.getInventory().getItemInMainHand();
                     if (item != null && item.getType().name().contains("MACE")) { 
@@ -1054,16 +1039,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // Explicit Wind Charge Projectile Detection (IMPROVED for Radius)
     @EventHandler
     public void onProjectileHit(ProjectileHitEvent event) {
         Projectile proj = event.getEntity();
 
-        // Check if the projectile is a Wind Charge or from a Breeze
         if (proj.getType().name().contains("WIND_CHARGE") || proj.getType().name().contains("BREEZE")) {
             Location hitLoc = proj.getLocation();
 
-            // Find players within 4.5 blocks of the blast to account for knockback radius
             for (Player p : Bukkit.getOnlinePlayers()) {
                 if (p.getWorld().equals(hitLoc.getWorld()) && p.getLocation().distance(hitLoc) < 4.5) {
                     PlayerData data = playerDataMap.get(p.getUniqueId());
@@ -1071,7 +1053,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                         data.lastBreezeBoostTime = System.currentTimeMillis();
                         data.lastVelocityTime = System.currentTimeMillis();
                         data.isWindBursting = true;
-                        data.flyViolations = 0; // Immediate reset
+                        data.flyViolations = 0; 
                     }
                 }
             }
@@ -1082,7 +1064,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     public void onPlayerVelocity(org.bukkit.event.player.PlayerVelocityEvent event) {
         PlayerData data = playerDataMap.get(event.getPlayer().getUniqueId());
         if (data != null) {
-            // If the server pushes the player, give them a 4-second grace period
             data.lastVelocityTime = System.currentTimeMillis();
             data.flyViolations = 0;
         }
@@ -1106,9 +1087,8 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         PlayerData data = playerDataMap.get(player.getUniqueId());
         if (data == null) return;
         
-        // If holding a Spear, relax sequence checks
         if (isHighMobilityItem(player)) {
-            data.lastDamageTime = 0; // Reset validation on spear swing
+            data.lastDamageTime = 0; 
             return;
         }
 
@@ -1124,7 +1104,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             Player victim = (Player) event.getEntity();
             PlayerData victimData = playerDataMap.get(victim.getUniqueId());
             if (victimData != null) {
-                // Velocity handling for victim
                 victimData.lastVelocityTime = System.currentTimeMillis();
                 
                 String damagerType = event.getDamager().getType().name();
@@ -1150,7 +1129,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     return; 
                 }
                 
-                // Spear/Mace Logic
                 if (isHighMobilityItem(attacker)) {
                      attackerData.isWindBursting = true;
                      attackerData.flyViolations = 0;
@@ -1180,24 +1158,19 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-   @EventHandler
+    @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         PlayerData data = playerDataMap.get(player.getUniqueId());
         
         if (checkCombatEnabled && (currentAntiCheatMode == 1 || currentAntiCheatMode == 3)) {
             if (data != null && data.isInCombat()) {
-                // DROP ITEMS LOOP RESTORED
-                // FIX: Used getContents() only. It includes Storage, Armor, and Offhand.
-                // Removing the specific armor loop prevents duplication.
                 for (ItemStack item : player.getInventory().getContents()) {
                     if (item != null && item.getType() != Material.AIR) {
                         player.getWorld().dropItemNaturally(player.getLocation(), item);
                     }
                 }
                 
-                // --- REMOVED DUPLICATE ARMOR LOOP HERE ---
-
                 player.getInventory().clear();
                 
                 combatLoggedPlayers.add(player.getUniqueId());
@@ -1207,10 +1180,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         playerDataMap.remove(player.getUniqueId());
         logToFile(player.getName(), "Player quit.");
     }
-
-    // ----------------------------------------------------------------------
-    // PUNISHMENT METHODS
-    // ----------------------------------------------------------------------
 
     private void kickPlayer(Player player, String reason) {
         String kickMessage = AC_PREFIX + ChatColor.RED + "You were kicked for " + reason + "!";
@@ -1254,7 +1223,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 kickPlayer(player, cheatType + " detected (" + violations + "/" + limit + ")");
                 logToFile(player.getName(), logMessage);
                 
-                // Reset violations after kick
                 if (playerDataMap.containsKey(player.getUniqueId())) {
                     PlayerData data = playerDataMap.get(player.getUniqueId());
                     data.flyViolations = 0;
