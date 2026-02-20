@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.nolan.ava</groupId>
   <artifactId>AvAAntiCheat</artifactId>
-  <version>1.9.4</version>
+  <version>1.9.4.5</version>
   <build>
     <plugins>
       <plugin>

@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.nolan.ava</groupId>
   <artifactId>AvAAntiCheat</artifactId>
-  <version>1.9.4</version>
+  <version>1.9.4.5</version>
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>

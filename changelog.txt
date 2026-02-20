@@ -1,5 +1,7 @@
 #change log
 # Note: this is diffrent then changelog.md because this is what is shown on servers when the plugin auto updates
+Version 1.9.4.5
+Fixed phasing punishing normal people
 Version 1.9.4
 Added phasing detection so if someone phases through a wall it will rubber band them back.
 Fixed some false detections and made some peformence updates

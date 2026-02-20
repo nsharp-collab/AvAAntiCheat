@@ -76,7 +76,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9.4";
+    private static final String AC_VERSION = "1.9.4.5";
     private static final String AC_AUTHOR = "Nolan";
 
     // Stuff for checking GitHub to see if we have a newer version
@@ -268,7 +268,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         
         String[] art = {
             dash,
-            ChatColor.GOLD + "         _                       _   ",
+            ChatColor.GOLD + "         _                      _   ",
             ChatColor.GOLD + "        / \\      __   __      / \\  ",
             ChatColor.GOLD + "       / _ \\     \\ \\ / /     / _ \\ ",
             ChatColor.GOLD + "      / ___ \\     \\ V /     / ___ \\",
@@ -607,7 +607,42 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         Material type = block.getType();
         return type == Material.SOUL_SAND || type == Material.SOUL_SOIL;
     }
-    
+
+private boolean isPartialHeightBlock(Block block) {
+    if (block == null) return false;
+
+    Material type = block.getType();
+
+    // These are known non-full collision blocks
+    if (type == Material.SOUL_SAND || type == Material.SOUL_SOIL)
+        return true;
+
+    if (type == Material.FARMLAND)
+        return true;
+
+    if (type == Material.SNOW) // snow layer (important)
+        return true;
+
+    // carpets (all colors automatically)
+    if (type.name().endsWith("_CARPET"))
+        return true;
+
+    // slabs & stairs (major false phase cause)
+    if (type.name().endsWith("_SLAB") || type.name().endsWith("_STAIRS"))
+        return true;
+
+    // honey + mud physics blocks
+    if (type == Material.HONEY_BLOCK || type == Material.MUD)
+        return true;
+
+    if (!type.isOccluding())
+        return true;
+
+    return false;
+}
+
+
+   
     private boolean isInLiquid(Player player) {
         Location loc = player.getLocation();
         Block block = loc.getBlock();
@@ -735,107 +770,115 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     }
 
     // Checks if the player moves horizontally too fast
-    private void checkSpeed(PlayerMoveEvent event, PlayerData data) {
-        if (!checkSpeedEnabled) return;
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
+private void checkSpeed(PlayerMoveEvent event, PlayerData data) {
+    if (!checkSpeedEnabled) return;
+    if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
 
-        Player player = event.getPlayer();
-        
-        if (player.isGliding()) {
-            data.speedViolations = 0;
-            return;
-        }
-        if (System.currentTimeMillis() - data.lastGlideTime < 3000) {
-            data.speedViolations = 0;
-            return;
-        }
+    Player player = event.getPlayer();
 
-        if (player.getAllowFlight() || player.isFlying() || player.isInsideVehicle()) return;
-        if (player.isRiptiding()) return;
-        
-        if (data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) {
-            return;
-        }
-        
-        if (System.currentTimeMillis() - data.lastVelocityTime < 3000) {
-            return; 
-        }
-        
-        Location from = event.getFrom();
-        Location to = event.getTo();
-        
-        double deltaX = to.getX() - from.getX();
-        double deltaZ = to.getZ() - from.getZ();
-        double horizontalDistance = Math.hypot(deltaX, deltaZ);
-        
-        double speedLimit = baseSpeedLimit;
-        
-        Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-        if (isIce(blockBelow)) {
-            speedLimit = iceSpeedLimit;
-        }
-        
-        if (player.hasPotionEffect(PotionEffectType.SPEED)) {
-            int amplifier = player.getPotionEffect(PotionEffectType.SPEED).getAmplifier() + 1;
-            speedLimit += (amplifier * 0.15); 
-        }
-        
-        if (player.hasPotionEffect(PotionEffectType.DOLPHINS_GRACE)) {
-            speedLimit += 0.4;
-        }
+    // Ignore legitimate movement types
+    if (player.isGliding()) return;
+    if (player.isRiptiding()) return;
+    if (player.isSwimming()) return;
+    if (isInLiquid(player)) return;
 
-        if (isSoulBlock(blockBelow)) {
-            ItemStack boots = player.getInventory().getBoots();
-            if (boots != null && boots.containsEnchantment(Enchantment.SOUL_SPEED)) {
-                int level = boots.getEnchantmentLevel(Enchantment.SOUL_SPEED);
-                speedLimit += (level * 0.15);
-            }
-        }
-        
-        if (isHighMobilityItem(player)) {
-            speedLimit += 0.6; 
-        }
+    if (player.hasPotionEffect(PotionEffectType.DOLPHINS_GRACE)) return;
 
-        if (horizontalDistance > speedLimit) {
-            data.speedViolations++;
-            logToFile(player.getName(), "CHECK:Speed VIO=" + data.speedViolations + " Dist=" + String.format("%.3f", horizontalDistance) + " Limit=" + speedLimit);
-            
-            if (data.speedViolations > speedViolationLimit) {
-                punishPlayer(player, "Speed", data.speedViolations);
-            }
-        } else {
-            if (data.speedViolations > 0) data.speedViolations--;
+    if (player.getAllowFlight() || player.isFlying() || player.isInsideVehicle()) return;
+
+    if (data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) return;
+
+    if (System.currentTimeMillis() - data.lastVelocityTime < 4000) return;
+
+    Location from = event.getFrom();
+    Location to = event.getTo();
+
+    double deltaX = to.getX() - from.getX();
+    double deltaZ = to.getZ() - from.getZ();
+    double horizontalDistance = Math.hypot(deltaX, deltaZ);
+
+    double speedLimit = baseSpeedLimit;
+
+    Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
+    if (isIce(blockBelow)) {
+        speedLimit = iceSpeedLimit;
+    }
+
+    if (player.hasPotionEffect(PotionEffectType.SPEED)) {
+        int amplifier = player.getPotionEffect(PotionEffectType.SPEED).getAmplifier() + 1;
+        speedLimit += (amplifier * 0.15);
+    }
+
+    if (isSoulBlock(blockBelow)) {
+        ItemStack boots = player.getInventory().getBoots();
+        if (boots != null && boots.containsEnchantment(Enchantment.SOUL_SPEED)) {
+            int level = boots.getEnchantmentLevel(Enchantment.SOUL_SPEED);
+            speedLimit += (level * 0.2);
         }
     }
+
+    if (isHighMobilityItem(player)) {
+        speedLimit += 0.6;
+    }
+
+    if (horizontalDistance > speedLimit) {
+        data.speedViolations++;
+        logToFile(player.getName(),
+                "CHECK:Speed VIO=" + data.speedViolations +
+                " Dist=" + String.format("%.3f", horizontalDistance) +
+                " Limit=" + speedLimit);
+
+        if (data.speedViolations > speedViolationLimit) {
+            punishPlayer(player, "Speed", data.speedViolations);
+        }
+    } else {
+        if (data.speedViolations > 0) data.speedViolations--;
+    }
+}
 
     // Prevents phasing through walls via packet manipulation or enderpearl clipping
-    private void checkPhase(PlayerMoveEvent event, PlayerData data) {
-        if (!checkPhaseEnabled) return;
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
+private void checkPhase(PlayerMoveEvent event, PlayerData data) {
+    if (!checkPhaseEnabled) return;
+    if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
 
-        Player player = event.getPlayer();
+    Player player = event.getPlayer();
 
-        // Let specators and creative fly-boys skip this
-        if (player.getGameMode().name().contains("SPECTATOR") || player.getAllowFlight()) return;
+    if (player.getAllowFlight() || player.isFlying()) return;
+    if (player.isSwimming()) return;
+    if (player.isRiptiding()) return;
+    if (isInLiquid(player)) return;
+    if (player.hasPotionEffect(PotionEffectType.DOLPHINS_GRACE)) return;
+    if (System.currentTimeMillis() - data.lastVelocityTime < 2000) return;
 
-        Location from = event.getFrom();
-        Location to = event.getTo();
+    Location from = event.getFrom();
+    Location to = event.getTo();
 
-        // No need to run big checks if they only moved their mouse
-        if (from.getBlockX() == to.getBlockX() && from.getBlockY() == to.getBlockY() && from.getBlockZ() == to.getBlockZ()) {
-            return;
-        }
-
-        Block toBlockFeet = to.getBlock();
-
-        // If where they are headed is fully occluding but where they came from is fine, they hit a wall.
-        // We use isOccluding to avoid snapping them back on stairs, slabs, or signs.
-        if (toBlockFeet.getType().isOccluding() && !from.getBlock().getType().isOccluding()) {
-            event.setTo(from); // Pop them right back where they came from (Rubberband)
-            player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't phase through blocks like that!");
-            logToFile(player.getName(), "CHECK:Phase - Prevented phasing into " + toBlockFeet.getType().name());
-        }
+    if (from.getBlockX() == to.getBlockX() &&
+        from.getBlockY() == to.getBlockY() &&
+        from.getBlockZ() == to.getBlockZ()) {
+        return;
     }
+
+    Block toBlockFeet = to.getBlock();
+    Block fromBlockFeet = from.getBlock();
+    Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
+
+    // Ignore partial blocks and soul blocks
+    if (isPartialHeightBlock(blockBelow) || isSoulBlock(blockBelow)) return;
+    if (isPartialHeightBlock(fromBlockFeet) || isPartialHeightBlock(toBlockFeet)) return;
+
+    if (toBlockFeet.getType().isOccluding() &&
+        !fromBlockFeet.getType().isOccluding()) {
+
+        Block eyeBlock = player.getEyeLocation().getBlock();
+        if (!eyeBlock.getType().isOccluding()) return;
+
+        event.setTo(from);
+        player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't phase through blocks like that!");
+        logToFile(player.getName(),
+                "CHECK:Phase - Prevented phasing into " + toBlockFeet.getType().name());
+    }
+}
 
     // Nobody likes a spammer, so let's keep chat clean
     private void checkSpam(AsyncPlayerChatEvent event, PlayerData data) {
