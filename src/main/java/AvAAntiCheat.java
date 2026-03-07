@@ -76,7 +76,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9.4.5";
+    private static final String AC_VERSION = "DEV-1.9.4.6";
     private static final String AC_AUTHOR = "Nolan";
 
     // Stuff for checking GitHub to see if we have a newer version
@@ -109,6 +109,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private double baseSpeedLimit = 0.65;
     private double iceSpeedLimit = 1.3;
     private int speedViolationLimit = 5;
+    private long glideGracePeriodMs = 7000;
 
     private int spiderViolationLimit = 5;
 
@@ -160,7 +161,8 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         
         // Handling the fun mobility items so we don't accidentally ban legitimate players
         boolean isGliding = false;
-        long lastGlideTime = 0; 
+        long lastGlideTime = 0;
+        long glideEndTime = 0; 
         
         boolean isRiptiding = false;
         boolean isWindBursting = false; 
@@ -255,6 +257,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
         baseSpeedLimit = getConfig().getDouble("speed-check.base-limit", 0.65);
         iceSpeedLimit = getConfig().getDouble("speed-check.ice-limit", 1.3);
+        glideGracePeriodMs = getConfig().getLong("speed-check.grace-period-ms", 7000);
     }
 
     @Override
@@ -789,6 +792,9 @@ private void checkSpeed(PlayerMoveEvent event, PlayerData data) {
     if (data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) return;
 
     if (System.currentTimeMillis() - data.lastVelocityTime < 4000) return;
+    
+    // Grace period after elytra is unequipped to allow velocity to dissipate
+    if (data.glideEndTime > 0 && (System.currentTimeMillis() - data.glideEndTime < glideGracePeriodMs)) return;
 
     Location from = event.getFrom();
     Location to = event.getTo();
@@ -985,7 +991,7 @@ private void checkPhase(PlayerMoveEvent event, PlayerData data) {
 
         if (player.isOp() && isUpdateAvailable) {
             getServer().getScheduler().runTaskLater(this, () -> {
-                player.sendMessage(AC_PREFIX + ChatColor.RED + ChatColor.BOLD + "AVANT ANTICHEAT UPDATE AVAILABLE!");
+                player.sendMessage(AC_PREFIX + ChatColor.RED + ChatColor.BOLD + "AVA ANTICHEAT UPDATE AVAILABLE!");
                 player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Current Version: " + ChatColor.WHITE + AC_VERSION);
                 player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Latest Version: " + ChatColor.GREEN + latestVersion);
                 player.sendMessage(AC_PREFIX + ChatColor.GRAY + "Changelog:\n" + updateChangelog);
@@ -1039,6 +1045,10 @@ private void checkPhase(PlayerMoveEvent event, PlayerData data) {
             if (data != null) {
                 data.lastGlideTime = System.currentTimeMillis();
                 data.isGliding = event.isGliding();
+                // Track when gliding ends to apply grace period
+                if (!event.isGliding()) {
+                    data.glideEndTime = System.currentTimeMillis();
+                }
             }
         }
     }

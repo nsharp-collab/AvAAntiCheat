@@ -39,6 +39,11 @@ speed-check:
   # ice-limit: The max speed allowed while on ice.
   # Ice allows much faster travel. Increase this to avoid false positives on ice highways.
   ice-limit: 1.3
+  
+  # grace-period-ms: Grace period in milliseconds after elytra is unequipped.
+  # Players landing from flight often have residual velocity that triggers speed checks.
+  # This gives them time to slow down naturally (default: 7000ms = 7 seconds).
+  grace-period-ms: 7000
 
 # kick-limits: number of offenses of each type required before an automatic kick
 kick-limits:

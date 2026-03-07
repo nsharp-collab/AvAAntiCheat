@@ -1,5 +1,12 @@
 # Changelog
 
+## DEV-[1.9.4.6] - 2026-03-07
+
+- **Build** THIS IS A DEV BUILD, EXPECT BUGS AND BE WARNED WHEN USING
+- **Fix:** Added grace period after elytra unequip to prevent false speed kick violations. Players landing from flight now have 7 seconds (configurable) of exemption from speed checks to allow residual velocity to dissipate naturally.
+- **Dev:** Implemented `glideEndTime` tracking in PlayerData to monitor when players stop gliding.
+- **Dev:** Made elytra grace period duration configurable via `speed-check.grace-period-ms` in `config.yml`.
+
 ## [1.9.4] - 2026-02-19
 
 - **New Feature:** Implemented phasing detection that prevents players from passing through walls via packet manipulation or enderpearl clipping. Players caught phasing are rubber-banded back to their previous location.
