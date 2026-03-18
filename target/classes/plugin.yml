@@ -7,7 +7,7 @@ description: An anti-cheat system detecting flight, spam, and PvP logging.
 commands:
   ac:
     description: AvA Anti-Cheat administration commands.
-    usage: /ac <status|start <1-4>|stop|kick <player>|checkop <player>|reload|debug>
+    usage: /ac <status|start <1-4>|stop|kick <player>|checkop <player>|reload|debug|perf <high|light|auto>|>
     permission: ava.admin
     permission-message: You don't have permission to use the AvA Anti-Cheat commands.
   secretdisable:

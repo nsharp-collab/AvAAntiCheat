@@ -1,4 +1,21 @@
 # Changelog
+## DEV-[1.9.5]-MATH - 2026-03-17
+AvA AntiCheat - Changelog
+# THIS IS A TESTING BUILD THAT IS STILL IN TESTING, THIS IS NOT FINISHED AT ALL, BE WARNED WHEN USING IT
+v1.9.5 - Advanced Math & Performance Update
+-------------------------------------------
+This version introduces dynamic hardware profiling and completely rewrites the core movement checks for high-performance servers.
+
+Additions & Changes:
+- Added Smart Hardware Profiling. The plugin now runs a short startup benchmark to test your CPU. Fast processors will automatically use the new strict vector math, while budget or ARM hosts will fall back to the classic lightweight checks to preserve TPS.
+- Added the /ac perf <high|light|auto> command, allowing server owners to manually override the hardware profile.
+- Integrated native Bedrock support via the Geyser API. Bedrock players automatically receive a slight leniency buffer on movement checks to account for packet translation jitter, reducing false positives.
+- Rewrote the Speed check for high-performance mode to use Time-Delta calculations. It now measures the time elapsed between packets rather than just flat distance, preventing players from saving up lag to teleport.
+- Added Vector Gravity Prediction to the Flight check. It now calculates the exact expected Y-velocity using Minecraft's internal gravity formula to catch hover and slow-fall cheats.
+- Upgraded the Phase check with Vector Ray-Tracing to detect horizontal clipping (H-Clip) through walls, even if the start and end blocks are both air.
+- Implemented a strict Terminal Velocity limit to instantly block vertical downward clipping (V-Clip).
+- Cleaned up the Maven pom.xml dependencies to ensure the plugin stays lightweight without pulling in unnecessary Geyser UI libraries.
+- Added customizable combat timer UI positions (ActionBar, BossBar, Subtitle).
 
 
 ## DEV-[1.9.4.6] - 2026-03-07
