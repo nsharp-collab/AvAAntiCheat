@@ -46,7 +46,14 @@ speed-check:
   grace-period-ms: 7000
 
 # combat-timeout-seconds: How long players remain in combat after hitting or being hit (in seconds).
-combat-timeout-seconds: 15
+combat-timeout-seconds: 30
+
+# combat-timer-position: Where the combat timer should display on the player's screen.
+# Valid options:
+# ACTION_BAR : Displays at the bottom above the hotbar.
+# BOSS_BAR   : Displays at the very top of the screen (Boss Bar).
+# SUBTITLE   : Displays floating just below the player's crosshair.
+combat-timer-position: ACTION_BAR
 
 # kick-limits: number of offenses of each type required before an automatic kick
 kick-limits:
