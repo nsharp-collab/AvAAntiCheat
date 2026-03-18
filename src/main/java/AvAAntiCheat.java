@@ -17,6 +17,8 @@
 package com.nolan.ava;
 
 // Grabbing all the necessary Bukkit and Java utilities we need
+import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.Location;
@@ -31,12 +33,14 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerRiptideEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
@@ -76,7 +80,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "DEV-1.9.4.6";
+    private static final String AC_VERSION = "DEV-1.9.5";
     private static final String AC_AUTHOR = "Nolan";
 
     // Stuff for checking GitHub to see if we have a newer version
@@ -118,7 +122,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private int spamViolationLimit = 5;
 
     // PvP stuff
-    private final long COMBAT_TIMEOUT_SECONDS = 15;
+    private long combatTimeoutSeconds = 15; // Changed from final so it can be updated via config
     private final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
 
     private final long MAX_SWING_DELAY_MS = 200;
@@ -153,6 +157,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         
         long combatEndTime = 0;
         long lastDamageTime = 0;
+        UUID lastAttacker = null; // Added for death tracking
         
         int sequenceViolations = 0;
         long lastAttackTime = 0;
@@ -225,6 +230,29 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         getCommand("ac").setExecutor(this);
         getCommand("secretdisable").setExecutor(this);
 
+        // Action Bar Combat Timer Task
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+            long now = System.currentTimeMillis();
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                PlayerData data = playerDataMap.get(p.getUniqueId());
+                if (data != null) {
+                    if (data.isInCombat()) {
+                        long secondsLeft = (data.combatEndTime - now) / 1000;
+                        if (secondsLeft > 0) {
+                            String message = ChatColor.RED + "⚔ In Combat: " + secondsLeft + "s ⚔";
+                            p.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(message));
+                        }
+                    } else if (data.combatEndTime > 0) {
+                        // Combat just expired naturally
+                        data.combatEndTime = 0;
+                        data.lastAttacker = null;
+                        p.spigot().sendMessage(ChatMessageType.ACTION_BAR, 
+                            new TextComponent(ChatColor.GREEN + "You are no longer in combat."));
+                    }
+                }
+            }
+        }, 20L, 20L);
+
         // Give the console a few seconds before printing our fancy banner
         Bukkit.getScheduler().runTaskLater(this, this::sendStartupBanner, 60L);
 
@@ -258,6 +286,8 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         baseSpeedLimit = getConfig().getDouble("speed-check.base-limit", 0.65);
         iceSpeedLimit = getConfig().getDouble("speed-check.ice-limit", 1.3);
         glideGracePeriodMs = getConfig().getLong("speed-check.grace-period-ms", 7000);
+        
+        combatTimeoutSeconds = getConfig().getLong("combat-timeout-seconds", 15);
     }
 
     @Override
@@ -611,41 +641,39 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         return type == Material.SOUL_SAND || type == Material.SOUL_SOIL;
     }
 
-private boolean isPartialHeightBlock(Block block) {
-    if (block == null) return false;
+    private boolean isPartialHeightBlock(Block block) {
+        if (block == null) return false;
 
-    Material type = block.getType();
+        Material type = block.getType();
 
-    // These are known non-full collision blocks
-    if (type == Material.SOUL_SAND || type == Material.SOUL_SOIL)
-        return true;
+        // These are known non-full collision blocks
+        if (type == Material.SOUL_SAND || type == Material.SOUL_SOIL)
+            return true;
 
-    if (type == Material.FARMLAND)
-        return true;
+        if (type == Material.FARMLAND)
+            return true;
 
-    if (type == Material.SNOW) // snow layer (important)
-        return true;
+        if (type == Material.SNOW) // snow layer (important)
+            return true;
 
-    // carpets (all colors automatically)
-    if (type.name().endsWith("_CARPET"))
-        return true;
+        // carpets (all colors automatically)
+        if (type.name().endsWith("_CARPET"))
+            return true;
 
-    // slabs & stairs (major false phase cause)
-    if (type.name().endsWith("_SLAB") || type.name().endsWith("_STAIRS"))
-        return true;
+        // slabs & stairs (major false phase cause)
+        if (type.name().endsWith("_SLAB") || type.name().endsWith("_STAIRS"))
+            return true;
 
-    // honey + mud physics blocks
-    if (type == Material.HONEY_BLOCK || type == Material.MUD)
-        return true;
+        // honey + mud physics blocks
+        if (type == Material.HONEY_BLOCK || type == Material.MUD)
+            return true;
 
-    if (!type.isOccluding())
-        return true;
+        if (!type.isOccluding())
+            return true;
 
-    return false;
-}
+        return false;
+    }
 
-
-   
     private boolean isInLiquid(Player player) {
         Location loc = player.getLocation();
         Block block = loc.getBlock();
@@ -773,118 +801,118 @@ private boolean isPartialHeightBlock(Block block) {
     }
 
     // Checks if the player moves horizontally too fast
-private void checkSpeed(PlayerMoveEvent event, PlayerData data) {
-    if (!checkSpeedEnabled) return;
-    if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
+    private void checkSpeed(PlayerMoveEvent event, PlayerData data) {
+        if (!checkSpeedEnabled) return;
+        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
 
-    Player player = event.getPlayer();
+        Player player = event.getPlayer();
 
-    // Ignore legitimate movement types
-    if (player.isGliding()) return;
-    if (player.isRiptiding()) return;
-    if (player.isSwimming()) return;
-    if (isInLiquid(player)) return;
+        // Ignore legitimate movement types
+        if (player.isGliding()) return;
+        if (player.isRiptiding()) return;
+        if (player.isSwimming()) return;
+        if (isInLiquid(player)) return;
 
-    if (player.hasPotionEffect(PotionEffectType.DOLPHINS_GRACE)) return;
+        if (player.hasPotionEffect(PotionEffectType.DOLPHINS_GRACE)) return;
 
-    if (player.getAllowFlight() || player.isFlying() || player.isInsideVehicle()) return;
+        if (player.getAllowFlight() || player.isFlying() || player.isInsideVehicle()) return;
 
-    if (data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) return;
+        if (data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) return;
 
-    if (System.currentTimeMillis() - data.lastVelocityTime < 4000) return;
-    
-    // Grace period after elytra is unequipped to allow velocity to dissipate
-    if (data.glideEndTime > 0 && (System.currentTimeMillis() - data.glideEndTime < glideGracePeriodMs)) return;
+        if (System.currentTimeMillis() - data.lastVelocityTime < 4000) return;
+        
+        // Grace period after elytra is unequipped to allow velocity to dissipate
+        if (data.glideEndTime > 0 && (System.currentTimeMillis() - data.glideEndTime < glideGracePeriodMs)) return;
 
-    Location from = event.getFrom();
-    Location to = event.getTo();
+        Location from = event.getFrom();
+        Location to = event.getTo();
 
-    double deltaX = to.getX() - from.getX();
-    double deltaZ = to.getZ() - from.getZ();
-    double horizontalDistance = Math.hypot(deltaX, deltaZ);
+        double deltaX = to.getX() - from.getX();
+        double deltaZ = to.getZ() - from.getZ();
+        double horizontalDistance = Math.hypot(deltaX, deltaZ);
 
-    double speedLimit = baseSpeedLimit;
+        double speedLimit = baseSpeedLimit;
 
-    Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-    if (isIce(blockBelow)) {
-        speedLimit = iceSpeedLimit;
-    }
+        Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
+        if (isIce(blockBelow)) {
+            speedLimit = iceSpeedLimit;
+        }
 
-    if (player.hasPotionEffect(PotionEffectType.SPEED)) {
-        int amplifier = player.getPotionEffect(PotionEffectType.SPEED).getAmplifier() + 1;
-        speedLimit += (amplifier * 0.15);
-    }
+        if (player.hasPotionEffect(PotionEffectType.SPEED)) {
+            int amplifier = player.getPotionEffect(PotionEffectType.SPEED).getAmplifier() + 1;
+            speedLimit += (amplifier * 0.15);
+        }
 
-    if (isSoulBlock(blockBelow)) {
-        ItemStack boots = player.getInventory().getBoots();
-        if (boots != null && boots.containsEnchantment(Enchantment.SOUL_SPEED)) {
-            int level = boots.getEnchantmentLevel(Enchantment.SOUL_SPEED);
-            speedLimit += (level * 0.2);
+        if (isSoulBlock(blockBelow)) {
+            ItemStack boots = player.getInventory().getBoots();
+            if (boots != null && boots.containsEnchantment(Enchantment.SOUL_SPEED)) {
+                int level = boots.getEnchantmentLevel(Enchantment.SOUL_SPEED);
+                speedLimit += (level * 0.2);
+            }
+        }
+
+        if (isHighMobilityItem(player)) {
+            speedLimit += 0.6;
+        }
+
+        if (horizontalDistance > speedLimit) {
+            data.speedViolations++;
+            logToFile(player.getName(),
+                    "CHECK:Speed VIO=" + data.speedViolations +
+                    " Dist=" + String.format("%.3f", horizontalDistance) +
+                    " Limit=" + speedLimit);
+
+            if (data.speedViolations > speedViolationLimit) {
+                punishPlayer(player, "Speed", data.speedViolations);
+            }
+        } else {
+            if (data.speedViolations > 0) data.speedViolations--;
         }
     }
-
-    if (isHighMobilityItem(player)) {
-        speedLimit += 0.6;
-    }
-
-    if (horizontalDistance > speedLimit) {
-        data.speedViolations++;
-        logToFile(player.getName(),
-                "CHECK:Speed VIO=" + data.speedViolations +
-                " Dist=" + String.format("%.3f", horizontalDistance) +
-                " Limit=" + speedLimit);
-
-        if (data.speedViolations > speedViolationLimit) {
-            punishPlayer(player, "Speed", data.speedViolations);
-        }
-    } else {
-        if (data.speedViolations > 0) data.speedViolations--;
-    }
-}
 
     // Prevents phasing through walls via packet manipulation or enderpearl clipping
-private void checkPhase(PlayerMoveEvent event, PlayerData data) {
-    if (!checkPhaseEnabled) return;
-    if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
+    private void checkPhase(PlayerMoveEvent event, PlayerData data) {
+        if (!checkPhaseEnabled) return;
+        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
 
-    Player player = event.getPlayer();
+        Player player = event.getPlayer();
 
-    if (player.getAllowFlight() || player.isFlying()) return;
-    if (player.isSwimming()) return;
-    if (player.isRiptiding()) return;
-    if (isInLiquid(player)) return;
-    if (player.hasPotionEffect(PotionEffectType.DOLPHINS_GRACE)) return;
-    if (System.currentTimeMillis() - data.lastVelocityTime < 2000) return;
+        if (player.getAllowFlight() || player.isFlying()) return;
+        if (player.isSwimming()) return;
+        if (player.isRiptiding()) return;
+        if (isInLiquid(player)) return;
+        if (player.hasPotionEffect(PotionEffectType.DOLPHINS_GRACE)) return;
+        if (System.currentTimeMillis() - data.lastVelocityTime < 2000) return;
 
-    Location from = event.getFrom();
-    Location to = event.getTo();
+        Location from = event.getFrom();
+        Location to = event.getTo();
 
-    if (from.getBlockX() == to.getBlockX() &&
-        from.getBlockY() == to.getBlockY() &&
-        from.getBlockZ() == to.getBlockZ()) {
-        return;
+        if (from.getBlockX() == to.getBlockX() &&
+            from.getBlockY() == to.getBlockY() &&
+            from.getBlockZ() == to.getBlockZ()) {
+            return;
+        }
+
+        Block toBlockFeet = to.getBlock();
+        Block fromBlockFeet = from.getBlock();
+        Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
+
+        // Ignore partial blocks and soul blocks
+        if (isPartialHeightBlock(blockBelow) || isSoulBlock(blockBelow)) return;
+        if (isPartialHeightBlock(fromBlockFeet) || isPartialHeightBlock(toBlockFeet)) return;
+
+        if (toBlockFeet.getType().isOccluding() &&
+            !fromBlockFeet.getType().isOccluding()) {
+
+            Block eyeBlock = player.getEyeLocation().getBlock();
+            if (!eyeBlock.getType().isOccluding()) return;
+
+            event.setTo(from);
+            player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't phase through blocks like that!");
+            logToFile(player.getName(),
+                    "CHECK:Phase - Prevented phasing into " + toBlockFeet.getType().name());
+        }
     }
-
-    Block toBlockFeet = to.getBlock();
-    Block fromBlockFeet = from.getBlock();
-    Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-
-    // Ignore partial blocks and soul blocks
-    if (isPartialHeightBlock(blockBelow) || isSoulBlock(blockBelow)) return;
-    if (isPartialHeightBlock(fromBlockFeet) || isPartialHeightBlock(toBlockFeet)) return;
-
-    if (toBlockFeet.getType().isOccluding() &&
-        !fromBlockFeet.getType().isOccluding()) {
-
-        Block eyeBlock = player.getEyeLocation().getBlock();
-        if (!eyeBlock.getType().isOccluding()) return;
-
-        event.setTo(from);
-        player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't phase through blocks like that!");
-        logToFile(player.getName(),
-                "CHECK:Phase - Prevented phasing into " + toBlockFeet.getType().name());
-    }
-}
 
     // Nobody likes a spammer, so let's keep chat clean
     private void checkSpam(AsyncPlayerChatEvent event, PlayerData data) {
@@ -1053,6 +1081,23 @@ private void checkPhase(PlayerMoveEvent event, PlayerData data) {
         }
     }
     
+    // Fallback for when the server misses the actual Riptide event
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        ItemStack item = event.getItem();
+        if (item != null && item.getType().name().contains("TRIDENT")) {
+            if (item.containsEnchantment(Enchantment.RIPTIDE)) {
+                PlayerData data = playerDataMap.get(event.getPlayer().getUniqueId());
+                if (data != null) {
+                    data.isRiptiding = true; 
+                    data.lastVelocityTime = System.currentTimeMillis();
+                    data.flyViolations = 0;
+                    data.speedViolations = 0;
+                }
+            }
+        }
+    }
+
     @EventHandler
     public void onPlayerRiptide(PlayerRiptideEvent event) {
         Player player = event.getPlayer();
@@ -1202,12 +1247,47 @@ private void checkPhase(PlayerMoveEvent event, PlayerData data) {
             LivingEntity damager = (LivingEntity) event.getDamager(); 
             if (damager instanceof Player) {
                 Player attacker = (Player) damager;
-                long combatEndTimestamp = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(COMBAT_TIMEOUT_SECONDS);
+                long combatEndTimestamp = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(combatTimeoutSeconds);
+                
                 PlayerData victimData = playerDataMap.get(victim.getUniqueId());
-                if (victimData != null) victimData.combatEndTime = combatEndTimestamp;
+                if (victimData != null) {
+                    victimData.combatEndTime = combatEndTimestamp;
+                    victimData.lastAttacker = attacker.getUniqueId();
+                }
+                
                 PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
-                if (attackerData != null) attackerData.combatEndTime = combatEndTimestamp;
+                if (attackerData != null) {
+                    attackerData.combatEndTime = combatEndTimestamp;
+                    attackerData.lastAttacker = victim.getUniqueId();
+                }
             }
+        }
+    }
+    
+    // Added death check to clear combat timer properly
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        Player player = event.getEntity();
+        PlayerData data = playerDataMap.get(player.getUniqueId());
+        
+        if (data != null) {
+            data.combatEndTime = 0; // Clear the dead player's combat tag
+            
+            // If they were fighting someone, clear the victor's combat tag too
+            if (data.lastAttacker != null) {
+                PlayerData attackerData = playerDataMap.get(data.lastAttacker);
+                if (attackerData != null && attackerData.lastAttacker != null && attackerData.lastAttacker.equals(player.getUniqueId())) {
+                    attackerData.combatEndTime = 0;
+                    attackerData.lastAttacker = null;
+                    
+                    Player attacker = Bukkit.getPlayer(data.lastAttacker);
+                    if (attacker != null && attacker.isOnline()) {
+                        attacker.spigot().sendMessage(ChatMessageType.ACTION_BAR, 
+                            new TextComponent(ChatColor.GREEN + "Combat ended (Opponent died)."));
+                    }
+                }
+            }
+            data.lastAttacker = null;
         }
     }
     
