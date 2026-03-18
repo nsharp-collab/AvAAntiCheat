@@ -40,6 +40,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerRiptideEvent;
+import org.bukkit.event.player.PlayerRegisterChannelEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -63,6 +64,7 @@ import org.bstats.charts.SimplePie;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -76,7 +78,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.Scanner;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.io.BufferedReader;
@@ -86,7 +87,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "DEV-1.9.5-MATH";
+    private static final String AC_VERSION = "DEV-1.9.5-MODDETECTOR";
     private static final String AC_AUTHOR = "Nolan";
 
     // Stuff for checking GitHub to see if we have a newer version
@@ -103,11 +104,8 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     
     // Hardware capability tracker
     private String currentHardwareMode = "OPTIMIZED_LIGHT";
-    private boolean hardwareModeForced = false; // Tracks if an admin manually set the mode via command
+    private boolean hardwareModeForced = false; 
     
-    // TODO: Future Integration for PacketEvents (Netty level packet interception for HIGH_PERFORMANCE mode)
-    // private boolean usePacketEvents = false;
-
     // Prefixes to ignore in the spam checker
     private final List<String> COMMAND_PREFIXES = Arrays.asList("#", "%");
 
@@ -118,6 +116,9 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private boolean checkSpamEnabled = true;
     private boolean checkCombatEnabled = true;
     private boolean checkPhaseEnabled = true;
+    private boolean checkModsEnabled = true;
+
+    private List<String> bannedMods = new ArrayList<>();
 
     // Some tuning values for our movement checks
     private final double MAX_FALL_DISTANCE = 0.5;
@@ -135,8 +136,8 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private int spamViolationLimit = 5;
 
     // PvP stuff
-    private long combatTimeoutSeconds = 15;
-    private String combatTimerPosition = "ACTION_BAR"; // Can be ACTION_BAR, BOSS_BAR, or SUBTITLE
+    private long combatTimeoutSeconds = 30;
+    private String combatTimerPosition = "ACTION_BAR"; 
     private final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
 
     private final long MAX_SWING_DELAY_MS = 200;
@@ -147,7 +148,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // Logging configurations
     private boolean enableFileLogging = true;
-    private boolean debugModeConsole = false; // Toggled via /ac debug
+    private boolean debugModeConsole = false; 
     private File logFolder;
     private File currentLogFile;
     private int maxLogFiles = 20;
@@ -158,7 +159,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private HashMap<UUID, PlayerData> playerDataMap = new HashMap<>();
     private Set<UUID> combatLoggedPlayers = new HashSet<>();
 
-    // Just a handy little class to keep track of everyone's behavior
     private static class PlayerData {
         int flyViolations = 0;
         int spiderViolations = 0;
@@ -172,14 +172,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         long combatEndTime = 0;
         long lastDamageTime = 0;
         UUID lastAttacker = null;
-        BossBar combatBossBar = null; // Used for the "top" UI setting
+        BossBar combatBossBar = null; 
         
         int sequenceViolations = 0;
         long lastAttackTime = 0;
         int attackSpeedViolations = 0;
         long lastAttackSpeedViolationTime = 0;
         
-        // Handling the fun mobility items so we don't accidentally ban legitimate players
         boolean isGliding = false;
         long lastGlideTime = 0;
         long glideEndTime = 0; 
@@ -190,7 +189,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         long lastBreezeBoostTime = 0;
         long lastVelocityTime = 0;
 
-        // Advanced Math Tracking (Delta-Time & Physics)
         long lastMoveTime = System.currentTimeMillis();
         double lastDeltaY = 0.0;
         boolean wasOnGround = true;
@@ -202,30 +200,25 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     @Override
     public void onEnable() {
-        // Evaluate hardware capabilities first (unless forced by config later, but command overrides this)
         detectHardwareCapabilities();
 
-        // Let's get our folders set up first
         if (!getDataFolder().exists()) getDataFolder().mkdirs();
         
         logFolder = new File(getDataFolder(), "logs");
         if (!logFolder.exists()) logFolder.mkdirs();
 
-        // Booting up bStats
         int pluginId = 28550; 
         Metrics metrics = new Metrics(this, pluginId);
         
-        // Load configuration & check for outdated config
         saveDefaultConfig();
         
-        int currentConfigVersion = 2; // Update this number in future updates if you change the config structure
+        int currentConfigVersion = 3; 
         if (getConfig().getInt("config-version", 0) < currentConfigVersion) {
             getLogger().warning("Your config.yml is outdated! Renaming to config-old.yml and generating a fresh one...");
             
             File configFile = new File(getDataFolder(), "config.yml");
             File oldConfigFile = new File(getDataFolder(), "config-old.yml");
             
-            // Delete the old backup if it exists so we can make a new one
             if (oldConfigFile.exists()) oldConfigFile.delete();
             
             if (configFile.renameTo(oldConfigFile)) {
@@ -238,7 +231,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         
         loadConfigValues();
 
-        // Getting logging ready (now partly async behind the scenes)
         if (enableFileLogging) {
             setupLoggingSession();
         }
@@ -250,17 +242,18 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             getLogger().warning("Couldn't set up bStats chart: " + e.getMessage());
         }
 
+        // Extremely important: This allows the server to listen to plugin message events properly
+        getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
+
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("ac").setExecutor(this);
         getCommand("secretdisable").setExecutor(this);
 
-        // Combat Timer Task (Now runs synchronously so it plays nice with BossBars and Titles)
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             long now = System.currentTimeMillis();
             for (Player p : Bukkit.getOnlinePlayers()) {
                 PlayerData data = playerDataMap.get(p.getUniqueId());
                 if (data != null) {
-                    // Check if they switched positions in config, if so, clear lingering BossBars
                     if (!combatTimerPosition.equalsIgnoreCase("BOSS_BAR") && data.combatBossBar != null) {
                         data.combatBossBar.removeAll();
                         data.combatBossBar = null;
@@ -286,7 +279,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                             }
                         }
                     } else if (data.combatEndTime > 0) {
-                        // Combat just expired naturally
                         data.combatEndTime = 0;
                         data.lastAttacker = null;
                         String clearMsg = ChatColor.GREEN + "You are no longer in combat.";
@@ -306,7 +298,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             }
         }, 20L, 20L);
 
-        // Give the console a few seconds before printing our fancy banner
         Bukkit.getScheduler().runTaskLater(this, this::sendStartupBanner, 60L);
 
         logToFile("SYSTEM", "Plugin Enabled - Session Started (Version " + AC_VERSION + ")");
@@ -315,7 +306,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     } 
 
     private void detectHardwareCapabilities() {
-        if (hardwareModeForced) return; // Don't auto-detect if the admin manually set it
+        if (hardwareModeForced) return; 
 
         int usableThreads = Runtime.getRuntime().availableProcessors();
         
@@ -325,12 +316,10 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
         long duration = System.nanoTime() - start;
         
-        // Increased to 8ms to account for JVM "Cold Start" without JIT warmup
         boolean fastCores = duration < 8_000_000; 
 
         if (usableThreads >= 6 && fastCores) {
             this.currentHardwareMode = "HIGH_PERFORMANCE";
-            // TODO: If PacketEvents API is found, set usePacketEvents = true;
         } else {
             this.currentHardwareMode = "OPTIMIZED_LIGHT";
         }
@@ -343,14 +332,35 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             try {
                 return org.geysermc.geyser.api.GeyserApi.api().isBedrockPlayer(player.getUniqueId());
             } catch (NoClassDefFoundError | Exception ignored) {
-                // Failsafe in case Geyser is loaded but API is unavailable/different version
             }
         }
         return false;
     }
 
+    // Safely retrieves the player's true ping using Reflection and 1.21 optimizations
+    private int getPlayerPing(Player player) {
+        if (isBedrock(player)) {
+            try {
+                org.geysermc.geyser.api.connection.GeyserConnection connection = 
+                    org.geysermc.geyser.api.GeyserApi.api().connectionByUuid(player.getUniqueId());
+                
+                if (connection != null) {
+                    java.lang.reflect.Method pingMethod = connection.getClass().getMethod("ping");
+                    int bedrockPing = (int) pingMethod.invoke(connection);
+                    return bedrockPing + 75; // Real ping + 75ms packet translation buffer
+                }
+            } catch (Exception ignored) {
+                // Ignore API lookup failures and fall through to default
+            }
+            // Failsafe: 50ms default ping + 75ms Geyser buffer if API fetch fails completely
+            return 125; 
+        }
+        
+        // Native 1.21+ API ping check for Java players
+        return player.getPing();
+    }
+
     private void loadConfigValues() {
-        // Reading all the stuff users can tweak in the config
         currentAntiCheatMode = getConfig().getInt("default-mode", 1);
         
         enableFileLogging = getConfig().getBoolean("enable-logging", true);
@@ -363,9 +373,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         checkSpamEnabled = getConfig().getBoolean("enabled-checks.chat-spam", true);
         checkCombatEnabled = getConfig().getBoolean("enabled-checks.combat", true);
         checkPhaseEnabled = getConfig().getBoolean("enabled-checks.phase", true);
+        checkModsEnabled = getConfig().getBoolean("enabled-checks.mod-detector", true);
+
+        bannedMods = getConfig().getStringList("banned-mods");
+        if (bannedMods == null) bannedMods = new ArrayList<>();
 
         flyViolationLimit = getConfig().getInt("kick-limits.flight", 5);
-        speedViolationLimit = getConfig().getInt("kick-limits.speed", 5);
+        speedViolationLimit = getConfig().getInt("kick-limits.speed", 10);
         spiderViolationLimit = getConfig().getInt("kick-limits.spider", 5); 
         spamViolationLimit = getConfig().getInt("kick-limits.chat-spam", 5);
         sequenceViolationLimit = getConfig().getInt("kick-limits.sequence", 5);
@@ -375,13 +389,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         iceSpeedLimit = getConfig().getDouble("speed-check.ice-limit", 1.3);
         glideGracePeriodMs = getConfig().getLong("speed-check.grace-period-ms", 7000);
         
-        combatTimeoutSeconds = getConfig().getLong("combat-timeout-seconds", 15);
+        combatTimeoutSeconds = getConfig().getLong("combat-timeout-seconds", 30);
         combatTimerPosition = getConfig().getString("combat-timer-position", "ACTION_BAR");
     }
 
     @Override
     public void onDisable() {
-        // Clean up boss bars so they don't linger on reload
         for (PlayerData data : playerDataMap.values()) {
             if (data.combatBossBar != null) {
                 data.combatBossBar.removeAll();
@@ -427,7 +440,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             getLogger().severe("Could not create new log file: " + e.getMessage());
         }
 
-        // Deleting old logs can take a moment if there are a lot, so let's push it off the main thread
         Bukkit.getScheduler().runTaskAsynchronously(this, this::rotateLogs);
     }
 
@@ -445,9 +457,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // Completely moved the actual file writing logic to an async task
     private void logToFile(String source, String message) {
-        // If debug mode is on, echo this directly to the console so admins can watch in real-time
         if (debugModeConsole) {
             getServer().getConsoleSender().sendMessage(ChatColor.DARK_GRAY + "[AvA-Debug | " + source + "] " + ChatColor.GRAY + message);
         }
@@ -483,7 +493,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                          updateChangelog = changelogBuilder.toString();
                      }
                 } catch (Exception ignored) {
-                    // It's cool if there's no changelog yet
                 }
                 
                 if (latestVersion != null) {
@@ -565,7 +574,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             }
 
             if (args.length == 0) {
-                sender.sendMessage(AC_PREFIX + ChatColor.AQUA + "Usage: /ac <status|start <1-4>|stop|kick|checkop|reload|perf|debug>");
+                sender.sendMessage(AC_PREFIX + ChatColor.AQUA + "Usage: /ac <status|start <1-4>|stop|kick|mods|checkop|reload|perf|debug>");
                 return true;
             }
 
@@ -601,7 +610,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 return true;
             }
 
-            // Command to manually override hardware detection (High Performance vs Optimized Light)
             if (subCommand.equals("perf")) {
                 if (args.length != 2) {
                     sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac perf <high|light|auto>");
@@ -627,7 +635,28 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 return true;
             }
 
-            // Our new debug command to stream logs right to the console
+            if (subCommand.equals("mods")) {
+                if (args.length < 2) {
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac mods <player>");
+                    return true;
+                }
+                Player target = getServer().getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " isn't online.");
+                    return true;
+                }
+                Set<String> channels = target.getListeningPluginChannels();
+                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Registered Handshake Channels for " + target.getName() + ":");
+                if (channels == null || channels.isEmpty()) {
+                    sender.sendMessage(ChatColor.GRAY + " - None (Either Vanilla, Bedrock, or a lying hacked client)");
+                } else {
+                    for (String channel : channels) {
+                        sender.sendMessage(ChatColor.AQUA + " - " + channel);
+                    }
+                }
+                return true;
+            }
+
             if (subCommand.equals("debug")) {
                 debugModeConsole = !debugModeConsole;
                 sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Console debugging is now " + (debugModeConsole ? "ON" : "OFF") + ".");
@@ -732,12 +761,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         if (checkSpiderEnabled) sb.append("Spider, ");
         if (checkPhaseEnabled) sb.append("Phase, ");
         if (checkCombatEnabled) sb.append("PvP, ");
-        if (checkSpamEnabled) sb.append("Spam");
+        if (checkSpamEnabled) sb.append("Spam, ");
+        if (checkModsEnabled) sb.append("Mods");
         if (sb.length() == 0) return "None";
         return sb.toString();
     }
 
-    // Helper to see if someone is brushing up against a wall
     private boolean isNearSolidBlock(Player player) {
         Location loc = player.getLocation();
         Block block = loc.getBlock();
@@ -770,25 +799,21 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
         Material type = block.getType();
 
-        // These are known non-full collision blocks
         if (type == Material.SOUL_SAND || type == Material.SOUL_SOIL)
             return true;
 
         if (type == Material.FARMLAND)
             return true;
 
-        if (type == Material.SNOW) // snow layer (important)
+        if (type == Material.SNOW) 
             return true;
 
-        // carpets (all colors automatically)
         if (type.name().endsWith("_CARPET"))
             return true;
 
-        // slabs & stairs (major false phase cause)
         if (type.name().endsWith("_SLAB") || type.name().endsWith("_STAIRS"))
             return true;
 
-        // honey + mud physics blocks
         if (type == Material.HONEY_BLOCK || type == Material.MUD)
             return true;
 
@@ -809,13 +834,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 || mCenter == Material.BUBBLE_COLUMN || mBelow == Material.BUBBLE_COLUMN || mAbove == Material.BUBBLE_COLUMN;
     }
 
-    // Checking for things that throw you around
     private boolean isHighMobilityItem(Player player) {
         ItemStack item = player.getInventory().getItemInMainHand();
         if (item == null || item.getType() == Material.AIR) return false;
 
         String matName = item.getType().name();
-        if (matName.contains("MACE") || matName.contains("TRIDENT")) return true; // Tha mace detection was a pain in my ass
+        if (matName.contains("MACE") || matName.contains("TRIDENT")) return true; 
         
         if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
             String displayName = ChatColor.stripColor(item.getItemMeta().getDisplayName()).toLowerCase();
@@ -825,7 +849,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         return false;
     }
 
-    // Stops players from climbing up smooth walls
     private void checkSpider(PlayerMoveEvent event, PlayerData data) {
         if (!checkSpiderEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
@@ -849,7 +872,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         double deltaY = event.getTo().getY() - event.getFrom().getY();
         if (deltaY > 0 && !player.isOnGround() && isNearSolidBlock(player)) {
             Block b = player.getLocation().getBlock();
-            // Checking the block below too to avoid flagging Bedrock players hitting weird hitboxes
             if (!isClimbable(b) && !isClimbable(b.getRelative(BlockFace.DOWN))) {
                 data.spiderTicks++;
                 if (data.spiderTicks > 10) {
@@ -868,7 +890,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // Making sure nobody is walking on thin air
     private void checkFlight(PlayerMoveEvent event, PlayerData data) {
         if (!checkFlightEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return; 
@@ -914,28 +935,24 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         boolean wasOnGround = data.wasOnGround;
         data.wasOnGround = player.isOnGround();
 
-        // ====== SMART PHYSICS PREDICTION (High Power Mode) ======
         if (isHighPower) {
-            // Only check if they are moving upwards and NOT jumping off the ground
             if (!player.isOnGround() && !wasOnGround && deltaY > 0) {
-                // Minecraft gravity: new_vel_y = (old_vel_y - 0.08) * 0.98
                 double expectedY = (data.lastDeltaY - 0.08) * 0.98;
+                int ping = getPlayerPing(player);
+                double pingMargin = (ping > 300) ? 0.05 : 0.0; 
                 
-                // If they are moving upwards faster than gravity allows
-                if (deltaY > expectedY + 0.1 && player.getFallDistance() < MAX_FALL_DISTANCE) {
+                if (deltaY > (expectedY + 0.1 + pingMargin) && player.getFallDistance() < MAX_FALL_DISTANCE) {
                     if (data.spiderTicks > 0) return;
                     data.flyViolations++;
-                    logToFile(player.getName(), "CHECK:Flight (Physics) VIO=" + data.flyViolations + " Y=" + String.format("%.3f", deltaY) + " ExpectedY=" + String.format("%.3f", expectedY));
+                    logToFile(player.getName(), "CHECK:Flight (Physics) VIO=" + data.flyViolations + " Y=" + String.format("%.3f", deltaY) + " ExpectedY=" + String.format("%.3f", expectedY) + " Ping=" + ping + "ms");
                     if (data.flyViolations > flyViolationLimit) {
                         punishPlayer(player, "Flight", data.flyViolations);
                     }
                 }
             } else if (player.isOnGround()) {
-                if (data.flyViolations > 0) data.flyViolations--; // Natural Decay
+                if (data.flyViolations > 0) data.flyViolations--; 
             }
-        } 
-        // ====== STANDARD FALLBACK (Low Power Mode) ======
-        else {
+        } else {
             if (!player.isOnGround() && deltaY > 0.05 && player.getFallDistance() < MAX_FALL_DISTANCE) {
                 if (deltaY > MAX_FALL_DISTANCE) {
                     if (data.spiderTicks > 0) return;
@@ -953,14 +970,12 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         data.lastDeltaY = deltaY;
     }
 
-    // Checks if the player moves horizontally too fast
     private void checkSpeed(PlayerMoveEvent event, PlayerData data) {
         if (!checkSpeedEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
 
         Player player = event.getPlayer();
 
-        // Ignore legitimate movement types
         if (player.isGliding()) return;
         if (player.isRiptiding()) return;
         if (player.isSwimming()) return;
@@ -974,7 +989,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
         if (System.currentTimeMillis() - data.lastVelocityTime < 4000) return;
         
-        // Grace period after elytra is unequipped to allow velocity to dissipate
         if (data.glideEndTime > 0 && (System.currentTimeMillis() - data.glideEndTime < glideGracePeriodMs)) return;
 
         Location from = event.getFrom();
@@ -1008,38 +1022,32 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             speedLimit += 0.6;
         }
 
-        // ====== NEW TIME-RELATIVE MATH ======
         long currentTime = System.currentTimeMillis();
         long timeDiff = currentTime - data.lastMoveTime;
         data.lastMoveTime = currentTime;
         
-        if (timeDiff < 5) timeDiff = 5; // Prevent division by zero logic issues
+        if (timeDiff < 5) timeDiff = 5; 
         double ticksElapsed = timeDiff / 50.0;
         
-        // Cap the multiplier at 5.0 (250ms of lag) so they can't save up lag to teleport
-        ticksElapsed = Math.min(ticksElapsed, 5.0);
+        int ping = getPlayerPing(player);
+        
+        double maxLagTicks = Math.min(20.0, Math.max(5.0, (ping + 100) / 50.0));
+        ticksElapsed = Math.min(ticksElapsed, maxLagTicks);
 
         boolean isHighPower = currentHardwareMode.equals("HIGH_PERFORMANCE");
 
-        // Step 1: Adjust for Hardware
         if (isHighPower) {
-            speedLimit -= 0.05; // Tighten the limit for precise ticks
-            
-            // Dynamic Time-Relative Math: distance allowed = limit * time spent
-            // We use Math.max(1.0) so we don't accidentally shrink the limit if ticksElapsed < 1 (super fast packet)
+            speedLimit -= 0.05; 
             speedLimit = speedLimit * Math.max(1.0, ticksElapsed);
         }
 
-        // Step 2: Adjust for Bedrock Lag
         if (isBedrock(player)) {
-            speedLimit *= 1.15; // Give Bedrock players 15% extra room for packet translation jitter
+            speedLimit *= 1.15; 
         }
 
-        // Step 3: Performance Shortcut (Only skip if we are on a low power CPU)
         if (!isHighPower && horizontalDistance < (speedLimit * 0.8)) {
-            return; // Ignore early if they aren't even close to save the Pi CPU cycles
+            return; 
         }
-        // ===============================================
 
         if (horizontalDistance > speedLimit) {
             data.speedViolations++;
@@ -1047,17 +1055,17 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                     "CHECK:Speed VIO=" + data.speedViolations +
                     " Dist=" + String.format("%.3f", horizontalDistance) +
                     " Limit=" + String.format("%.3f", speedLimit) +
-                    " TicksDelta=" + String.format("%.2f", ticksElapsed));
+                    " TicksDelta=" + String.format("%.2f", ticksElapsed) +
+                    " Ping=" + ping + "ms");
 
             if (data.speedViolations > speedViolationLimit) {
                 punishPlayer(player, "Speed", data.speedViolations);
             }
         } else {
-            if (data.speedViolations > 0) data.speedViolations--; // Natural Decay
+            if (data.speedViolations > 0) data.speedViolations--; 
         }
     }
 
-    // Prevents phasing through walls via packet manipulation or enderpearl clipping
     private void checkPhase(PlayerMoveEvent event, PlayerData data) {
         if (!checkPhaseEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
@@ -1082,13 +1090,9 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
         boolean isHighPower = currentHardwareMode.equals("HIGH_PERFORMANCE");
         
-        // ====== ADVANCED MATH ENGINE: RAY-TRACING & V-CLIP ======
         if (isHighPower) {
             double deltaY = to.getY() - from.getY();
             
-            // 1. Strict V-Clip (Terminal Velocity) Check
-            // Maximum possible downward velocity in Minecraft is -3.92 blocks per tick.
-            // If they drop faster than -4.0, they mathematically teleported.
             if (deltaY < -4.0) {
                 event.setTo(from);
                 player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't clip through the floor!");
@@ -1096,39 +1100,33 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 return;
             }
             
-            // 2. Vector Ray-Tracing (H-Clip) Check
-            // If the player moved far enough in one tick (more than 0.4 blocks), trace a laser
-            // to ensure they didn't skip over a wall between their old and new coordinate.
             Vector dir = to.toVector().subtract(from.toVector());
             double dist = dir.length();
             
-            if (dist > 0.4 && dist < 10.0) { // Limit max distance to prevent chunk-loading lag spikes
-                // We cast the ray from chest-height to avoid catching stairs/slabs under their feet
+            int ping = getPlayerPing(player);
+            double rayTraceThreshold = (ping > 400) ? 0.6 : 0.4; 
+            
+            if (dist > rayTraceThreshold && dist < 10.0) { 
                 Location traceStart = from.clone().add(0, 1.0, 0);
                 
-                // rayTraceBlocks(start, direction, maxDistance, fluidMode, ignorePassableBlocks)
                 RayTraceResult trace = player.getWorld().rayTraceBlocks(traceStart, dir, dist, FluidCollisionMode.NEVER, true);
                 
                 if (trace != null && trace.getHitBlock() != null) {
                     Block hit = trace.getHitBlock();
-                    // If the laser hit an occluding block in the middle of their travel path
                     if (hit.getType().isOccluding() && !isPartialHeightBlock(hit)) {
                         event.setTo(from);
                         player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't phase through blocks like that!");
-                        logToFile(player.getName(), "CHECK:Phase - RayTrace Intersected " + hit.getType().name());
-                        return; // Early return so we don't double-flag on the fallback check
+                        logToFile(player.getName(), "CHECK:Phase - RayTrace Intersected " + hit.getType().name() + " Ping=" + ping + "ms");
+                        return; 
                     }
                 }
             }
         }
-        // ========================================================
 
-        // ====== ORIGINAL FALLBACK / LIGHTWEIGHT CHECK ======
         Block toBlockFeet = to.getBlock();
         Block fromBlockFeet = from.getBlock();
         Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
 
-        // Ignore partial blocks and soul blocks
         if (isPartialHeightBlock(blockBelow) || isSoulBlock(blockBelow)) return;
         if (isPartialHeightBlock(fromBlockFeet) || isPartialHeightBlock(toBlockFeet)) return;
 
@@ -1145,7 +1143,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
 
-    // Nobody likes a spammer, so let's keep chat clean
     private void checkSpam(AsyncPlayerChatEvent event, PlayerData data) {
         if (!checkSpamEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 4) return; 
@@ -1195,7 +1192,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    // Making sure they aren't sending weird hit packets
     private void checkAttackSequence(Player player, PlayerData data) {
          if (!checkCombatEnabled) return;
          if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return; 
@@ -1215,7 +1211,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    // Auto-clicker detection
     private void checkAttackSpeed(Player attacker, PlayerData data) {
         if (!checkCombatEnabled) return;
         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return;
@@ -1239,6 +1234,29 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
         data.lastAttackTime = currentTime;
     }
+
+    // ====== NEW MOD DETECTOR ENGINE ======
+    @EventHandler
+    public void onPlayerRegisterChannel(PlayerRegisterChannelEvent event) {
+        if (!checkModsEnabled || currentAntiCheatMode == 0) return;
+        
+        Player player = event.getPlayer();
+        String channel = event.getChannel().toLowerCase();
+        
+        for (String banned : bannedMods) {
+            if (channel.contains(banned.toLowerCase())) {
+                // Must be run synchronously to safely kick the player
+                getServer().getScheduler().runTask(this, () -> {
+                    String logMessage = "AUTOMATICALLY KICKED " + player.getName() + " for Banned Mod Channel: " + channel;
+                    getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + " was kicked for using a banned mod.");
+                    kickPlayer(player, "Banned Client Mod (" + banned + ")");
+                    logToFile(player.getName(), logMessage);
+                });
+                return;
+            }
+        }
+    }
+    // =====================================
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -1290,7 +1308,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             
             if (data.isRiptiding && player.isOnGround()) data.isRiptiding = false;
             
-            // Wait a sec before turning off wind bursting so we don't flag them on the bounce
             if (data.isWindBursting && player.isOnGround() && (System.currentTimeMillis() - data.lastBreezeBoostTime > 1000)) {
                 data.isWindBursting = false;
             }
@@ -1304,7 +1321,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             if (data != null) {
                 data.lastGlideTime = System.currentTimeMillis();
                 data.isGliding = event.isGliding();
-                // Track when gliding ends to apply grace period
                 if (!event.isGliding()) {
                     data.glideEndTime = System.currentTimeMillis();
                 }
@@ -1312,7 +1328,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    // Fallback for when the server misses the actual Riptide event
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         ItemStack item = event.getItem();
@@ -1495,7 +1510,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         }
     }
     
-    // Death check to clear combat timer properly
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
@@ -1509,7 +1523,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 data.combatBossBar = null;
             }
             
-            // If they were fighting someone, clear the victor's combat tag too
             if (data.lastAttacker != null) {
                 PlayerData attackerData = playerDataMap.get(data.lastAttacker);
                 if (attackerData != null && attackerData.lastAttacker != null && attackerData.lastAttacker.equals(player.getUniqueId())) {

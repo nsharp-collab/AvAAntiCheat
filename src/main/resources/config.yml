@@ -1,7 +1,7 @@
 ## AvA Anti-Cheat default configuration
 
 # config-version: Do not touch this! The plugin uses it to detect if your config file is outdated.
-config-version: 2
+config-version: 3
 
 # default-mode: plugin startup mode (0=Disabled, 1=All, 2=Flight, 3=PvP, 4=Chat Spam)
 default-mode: 1
@@ -21,7 +21,6 @@ max-logs: 20
 
 # enabled-checks: Toggle specific checks on or off. 
 # This allows you to customize "Mode 1" or disable specific annoyances.
-# Note: If a mode (e.g. Mode 3 for PvP) is active, but 'combat' is false here, combat checks will not run.
 enabled-checks:
   flight: true
   speed: true
@@ -29,30 +28,36 @@ enabled-checks:
   phase: true
   chat-spam: true
   combat: true
+  mod-detector: true
+
+# --- Mod Detector Settings ---
+# The Mod Detector listens to the background "handshake" channels clients send to the server.
+# NOTE: This only catches "honest" mods (like minimaps or world downloaders) that announce themselves.
+# Hacked clients (like Meteor or Wurst) lie to the server and say they are Vanilla, so they won't show up here!
+# 
+# To find a mod's channel name, have a player join with the mod installed, and type: /ac mods <player>
+# You only need to type a part of the channel name here to ban it.
+banned-mods:
+  - "xaerominimap"
+  - "worlddownloader"
+  - "wdl"
+  - "journeymap"
+  - "voxelmap"
 
 # speed-check: Configure the sensitivity of the speed detection
 speed-check:
   # base-limit: The max horizontal distance allowed per tick for normal walking/sprinting.
-  # Vanilla sprint-jump is roughly 0.6. We add leeway (0.65 or 0.70 recommended).
   base-limit: 0.65
-  
   # ice-limit: The max speed allowed while on ice.
-  # Ice allows much faster travel. Increase this to avoid false positives on ice highways.
   ice-limit: 1.3
-  
   # grace-period-ms: Grace period in milliseconds after elytra is unequipped.
-  # Players landing from flight often have residual velocity that triggers speed checks.
-  # This gives them time to slow down naturally (default: 7000ms = 7 seconds).
   grace-period-ms: 7000
 
 # combat-timeout-seconds: How long players remain in combat after hitting or being hit (in seconds).
 combat-timeout-seconds: 30
 
 # combat-timer-position: Where the combat timer should display on the player's screen.
-# Valid options:
-# ACTION_BAR : Displays at the bottom above the hotbar.
-# BOSS_BAR   : Displays at the very top of the screen (Boss Bar).
-# SUBTITLE   : Displays floating just below the player's crosshair.
+# Valid options: ACTION_BAR, BOSS_BAR, SUBTITLE
 combat-timer-position: ACTION_BAR
 
 # kick-limits: number of offenses of each type required before an automatic kick
@@ -63,5 +68,3 @@ kick-limits:
   chat-spam: 5
   sequence: 5
   attack-speed: 5
-
-# Note: Adjust these values to tune punishment sensitivity.

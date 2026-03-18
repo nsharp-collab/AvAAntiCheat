@@ -2,7 +2,7 @@
 
 **PROJECT NAME:** AvA Anti-Cheat
 
-**VERSION:** 1.9.4.5
+**VERSION:** 1.9.5
 
 **COPYRIGHT:** Copyright (c) 2025-2026 Nolan Sharp
 
@@ -21,6 +21,10 @@ This project relies on and is developed using the following third-party librarie
     * This project uses bStats to collect anonymous usage metrics to help the developer improve the software.
     * Collected data includes server version, Java version, and specific plugin configuration data, such as the active Anti-Cheat Mode.
     * No personally identifiable information is collected.
+* **GeyserMC (Optional Integration)**
+    * AvA AntiCheat dynamically hooks into the Geyser API if present on the server to provide native Bedrock support and movement leniency. AvA AntiCheat does not distribute GeyserMC code.
+    * Copyright (c) 2020 GeyserMC
+    * The Geyser API is open-source software licensed under the MIT License. A copy of the MIT License can be found at: https://github.com/GeyserMC/Geyser/blob/master/LICENSE
 
 ---
 The contents of this Notice file are for informational purposes only and do not modify the License.
