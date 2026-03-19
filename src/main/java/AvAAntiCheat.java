@@ -41,6 +41,8 @@ import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerRiptideEvent;
 import org.bukkit.event.player.PlayerRegisterChannelEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -87,7 +89,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "DEV-1.9.5-MODDETECTOR";
+    private static final String AC_VERSION = "DEV-1.9.5-Update";
     private static final String AC_AUTHOR = "Nolan";
 
     // Stuff for checking GitHub to see if we have a newer version
@@ -337,7 +339,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         return false;
     }
 
-    // Safely retrieves the player's true ping using Reflection and 1.21 optimizations
     private int getPlayerPing(Player player) {
         if (isBedrock(player)) {
             try {
@@ -347,16 +348,13 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 if (connection != null) {
                     java.lang.reflect.Method pingMethod = connection.getClass().getMethod("ping");
                     int bedrockPing = (int) pingMethod.invoke(connection);
-                    return bedrockPing + 75; // Real ping + 75ms packet translation buffer
+                    return bedrockPing + 75; 
                 }
             } catch (Exception ignored) {
-                // Ignore API lookup failures and fall through to default
             }
-            // Failsafe: 50ms default ping + 75ms Geyser buffer if API fetch fails completely
             return 125; 
         }
         
-        // Native 1.21+ API ping check for Java players
         return player.getPing();
     }
 
@@ -1235,7 +1233,47 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         data.lastAttackTime = currentTime;
     }
 
-    // ====== NEW MOD DETECTOR ENGINE ======
+    // ====== LIGHTWEIGHT OPTIMIZATION: NATIVE COMMAND INTERCEPTOR ======
+    @EventHandler
+    public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
+        if (!checkCombatEnabled || (currentAntiCheatMode != 1 && currentAntiCheatMode != 3)) return;
+
+        Player player = event.getPlayer();
+        PlayerData data = playerDataMap.get(player.getUniqueId());
+
+        if (data != null && data.isInCombat()) {
+            String command = event.getMessage().toLowerCase();
+            if (command.startsWith("/home") || command.startsWith("/spawn") || 
+                command.startsWith("/tpa") || command.startsWith("/tpaccept") || 
+                command.startsWith("/back") || command.startsWith("/warp")) {
+                
+                event.setCancelled(true);
+                player.sendMessage(AC_PREFIX + ChatColor.RED + "You cannot teleport while in combat!");
+                logToFile(player.getName(), "Prevented combat log command: " + command);
+            }
+        }
+    }
+
+    // ====== LIGHTWEIGHT OPTIMIZATION: INVENTORY WALK PREVENTION ======
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player player = (Player) event.getWhoClicked();
+
+        if (player.getGameMode().toString().contains("CREATIVE") || player.getGameMode().toString().contains("SPECTATOR")) return;
+
+        PlayerData data = playerDataMap.get(player.getUniqueId());
+        if (data != null) {
+            // Pure Vanilla Minecraft physically prevents you from sprinting with an open inventory.
+            // If they are sprinting AND clicking items, they are using a hacked client.
+            if (player.isSprinting() && !player.isFlying() && !player.isGliding()) {
+                event.setCancelled(true);
+                player.sendMessage(AC_PREFIX + ChatColor.RED + "Inventory actions while sprinting are blocked!");
+                logToFile(player.getName(), "Blocked InventoryWalk (Sprinting Hack Detected)");
+            }
+        }
+    }
+
     @EventHandler
     public void onPlayerRegisterChannel(PlayerRegisterChannelEvent event) {
         if (!checkModsEnabled || currentAntiCheatMode == 0) return;
@@ -1245,7 +1283,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         
         for (String banned : bannedMods) {
             if (channel.contains(banned.toLowerCase())) {
-                // Must be run synchronously to safely kick the player
                 getServer().getScheduler().runTask(this, () -> {
                     String logMessage = "AUTOMATICALLY KICKED " + player.getName() + " for Banned Mod Channel: " + channel;
                     getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + " was kicked for using a banned mod.");
@@ -1256,7 +1293,6 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             }
         }
     }
-    // =====================================
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -1391,7 +1427,9 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             Location hitLoc = proj.getLocation();
 
             for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.getWorld().equals(hitLoc.getWorld()) && p.getLocation().distance(hitLoc) < 4.5) {
+                // LIGHTWEIGHT OPTIMIZATION: Swapped .distance() for .distanceSquared() to avoid CPU heavy Math.sqrt() calculations
+                // 4.5 blocks squared is 20.25
+                if (p.getWorld().equals(hitLoc.getWorld()) && p.getLocation().distanceSquared(hitLoc) < 20.25) {
                     PlayerData data = playerDataMap.get(p.getUniqueId());
                     if (data != null) {
                         data.lastBreezeBoostTime = System.currentTimeMillis();
