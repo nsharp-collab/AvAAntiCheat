@@ -51,6 +51,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.enchantments.Enchantment;
@@ -65,6 +66,7 @@ import org.bstats.charts.SimplePie;
 
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -85,11 +87,11 @@ import java.util.Date;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
-public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecutor {
+public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecutor, PluginMessageListener {
 
     // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "DEV-1.9.5-Update";
+    private static final String AC_VERSION = "DEV-1.9.5-INFO1";
     private static final String AC_AUTHOR = "Nolan";
 
     // Stuff for checking GitHub to see if we have a newer version
@@ -162,6 +164,8 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
     private Set<UUID> combatLoggedPlayers = new HashSet<>();
 
     private static class PlayerData {
+        String clientBrand = "Unknown"; // 1.21 Brand tracking
+
         int flyViolations = 0;
         int spiderViolations = 0;
         int spiderTicks = 0;
@@ -244,6 +248,9 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             getLogger().warning("Couldn't set up bStats chart: " + e.getMessage());
         }
 
+        // Register incoming plugin channels for Brand reading (Strictly 1.13+ Format)
+        getServer().getMessenger().registerIncomingPluginChannel(this, "minecraft:brand", this);
+
         // Extremely important: This allows the server to listen to plugin message events properly
         getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
 
@@ -306,6 +313,26 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
         checkVersionAndDownload();
     } 
+
+    @Override
+    public void onPluginMessageReceived(String channel, Player player, byte[] message) {
+        // Modern 1.13+ formatting
+        if (channel.equals("minecraft:brand")) {
+            try {
+                // Minecraft prefixes packet strings with a length byte. 
+                // For a short string like a brand name, it's exactly 1 byte.
+                int length = message[0]; 
+                String brand = new String(message, 1, length, StandardCharsets.UTF_8);
+                
+                PlayerData data = playerDataMap.get(player.getUniqueId());
+                if (data != null) {
+                    data.clientBrand = brand;
+                }
+            } catch (Exception e) {
+                // If the packet format is weird, fail silently
+            }
+        }
+    }
 
     private void detectHardwareCapabilities() {
         if (hardwareModeForced) return; 
@@ -462,6 +489,17 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
         if (!enableFileLogging || currentLogFile == null) return;
 
+        // FIXED: Stop attempting async tasks when the plugin is already disabled!
+        if (!this.isEnabled()) {
+            try (FileWriter fw = new FileWriter(currentLogFile, true)) {
+                String timestamp = DATE_FORMAT.format(new Date());
+                fw.write("[" + timestamp + "] [" + source + "] " + message + "\n");
+            } catch (IOException e) {
+                getLogger().severe("Uh oh, failed to write to log: " + e.getMessage());
+            }
+            return;
+        }
+
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             try (FileWriter fw = new FileWriter(currentLogFile, true)) {
                 String timestamp = DATE_FORMAT.format(new Date());
@@ -572,7 +610,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             }
 
             if (args.length == 0) {
-                sender.sendMessage(AC_PREFIX + ChatColor.AQUA + "Usage: /ac <status|start <1-4>|stop|kick|mods|checkop|reload|perf|debug>");
+                sender.sendMessage(AC_PREFIX + ChatColor.AQUA + "Usage: /ac <status|start <1-4>|stop|kick|mods|info|checkop|reload|perf|debug>");
                 return true;
             }
 
@@ -652,6 +690,59 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                         sender.sendMessage(ChatColor.AQUA + " - " + channel);
                     }
                 }
+                return true;
+            }
+            
+            if (subCommand.equals("info")) {
+                if (args.length < 3) {
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac info <player> <true|false (show perms)>");
+                    return true;
+                }
+                Player target = getServer().getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " isn't online.");
+                    return true;
+                }
+
+                boolean showPerms = false;
+                if (args[2].equalsIgnoreCase("true")) {
+                    showPerms = true;
+                } else if (!args[2].equalsIgnoreCase("false")) {
+                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Please specify true or false for the <perms> flag.");
+                    return true;
+                }
+
+                sender.sendMessage(ChatColor.DARK_GRAY + "---[ " + ChatColor.GOLD + "AvA Player Info: " + target.getName() + ChatColor.DARK_GRAY + " ]---");
+                
+                sender.sendMessage(ChatColor.YELLOW + "UUID: " + ChatColor.WHITE + target.getUniqueId().toString());
+                
+                boolean isBedrockPlayer = isBedrock(target);
+                sender.sendMessage(ChatColor.YELLOW + "Platform: " + ChatColor.WHITE + (isBedrockPlayer ? "Bedrock (Geyser)" : "Java"));
+                
+                // --- Fetch the brand safely from our custom listener ---
+                PlayerData targetData = playerDataMap.get(target.getUniqueId());
+                String clientBrand = (targetData != null && targetData.clientBrand != null) ? targetData.clientBrand : "Unknown";
+                
+                sender.sendMessage(ChatColor.YELLOW + "Client Brand: " + ChatColor.WHITE + clientBrand);
+                
+                sender.sendMessage(ChatColor.YELLOW + "Ping: " + ChatColor.WHITE + getPlayerPing(target) + "ms");
+                
+                Set<String> channels = target.getListeningPluginChannels();
+                if (channels == null || channels.isEmpty()) {
+                    sender.sendMessage(ChatColor.YELLOW + "Channels/Mods: " + ChatColor.GRAY + "None");
+                } else {
+                    sender.sendMessage(ChatColor.YELLOW + "Channels/Mods (" + channels.size() + "): " + ChatColor.GRAY + String.join(", ", channels));
+                }
+
+                if (showPerms) {
+                    List<String> perms = new ArrayList<>();
+                    for (org.bukkit.permissions.PermissionAttachmentInfo pInfo : target.getEffectivePermissions()) {
+                        perms.add(pInfo.getPermission() + "(" + pInfo.getValue() + ")");
+                    }
+                    sender.sendMessage(ChatColor.YELLOW + "Permissions: " + ChatColor.GRAY + String.join(", ", perms));
+                }
+
+                sender.sendMessage(ChatColor.DARK_GRAY + "--------------------------------");
                 return true;
             }
 
