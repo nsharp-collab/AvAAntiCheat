@@ -1,7 +1,5 @@
-#change log
+#changelog
 # Note: this is diffrent then changelog.md because this is what is shown on servers when the plugin auto updates
-Version 1.9.4.5
-Fixed phasing punishing normal people
-Version 1.9.4
-Added phasing detection so if someone phases through a wall it will rubber band them back.
-Fixed some false detections and made some peformence updates
+[1.9.5]-Math update
+when the anti-cheat first enables it runs a beanchmark to see if the server its running is "high peformance" and if it is marked as high peformance, then it runs more complicated and percise math checks and if not, it will run the optimized lighter checks.
+more info can be found at the offical github page at /docs/CHANGELOG.md 

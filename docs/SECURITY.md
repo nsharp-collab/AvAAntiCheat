@@ -15,6 +15,7 @@ Our server supports stable versions of **Paper** and its forks (like Purpur). We
 ## Reporting a Vulnerability (Responsible Disclosure)
 
 If you discover a potential security issue, please follow these steps for responsible disclosure. **Do NOT open a public issue on GitHub, post on social media, or disclose the vulnerability publicly before it is patched.**
+Important Note: A security vulnerability refers to exploits that could crash the server (DoS), gain unauthorized permissions (RCE/Privilege Escalation), or access sensitive data. Standard cheat bypasses (e.g., a specific client bypasses the Fly check) should still be reported via a standard Issue or Discord, unless they involve a server-side exploit.
 
 ### Preferred Reporting Method
 
