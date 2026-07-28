@@ -1,5 +1,5 @@
 name: AvAAntiCheat
-version: DEV-1.9.5-INFO1
+version: DEV-1.9.5-SPLIT
 main: com.nolan.ava.AvAAntiCheat
 api-version: 1.21
 authors: [Nolan]
