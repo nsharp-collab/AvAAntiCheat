@@ -1,1 +1,12 @@
 /home/nolan/AvAAntiCheat-1/src/main/java/AvAAntiCheat.java
+/home/nolan/AvAAntiCheat-1/src/main/java/checks/ChatCheck.java
+/home/nolan/AvAAntiCheat-1/src/main/java/checks/CombatChecks.java
+/home/nolan/AvAAntiCheat-1/src/main/java/checks/MovementChecks.java
+/home/nolan/AvAAntiCheat-1/src/main/java/commands/ACCommandExecutor.java
+/home/nolan/AvAAntiCheat-1/src/main/java/data/PlayerData.java
+/home/nolan/AvAAntiCheat-1/src/main/java/listeners/AvAListener.java
+/home/nolan/AvAAntiCheat-1/src/main/java/util/BlockUtils.java
+/home/nolan/AvAAntiCheat-1/src/main/java/util/HardwareManager.java
+/home/nolan/AvAAntiCheat-1/src/main/java/util/LogManager.java
+/home/nolan/AvAAntiCheat-1/src/main/java/util/PingUtils.java
+/home/nolan/AvAAntiCheat-1/src/main/java/util/UpdateManager.java

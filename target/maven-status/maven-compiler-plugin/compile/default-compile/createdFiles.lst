@@ -1,2 +1,12 @@
+com/nolan/ava/util/PingUtils.class
+com/nolan/ava/data/PlayerData.class
+com/nolan/ava/checks/CombatChecks.class
+com/nolan/ava/util/HardwareManager.class
+com/nolan/ava/listeners/AvAListener.class
+com/nolan/ava/checks/ChatCheck.class
+com/nolan/ava/util/UpdateManager.class
+com/nolan/ava/util/LogManager.class
+com/nolan/ava/commands/ACCommandExecutor.class
 com/nolan/ava/AvAAntiCheat.class
-com/nolan/ava/AvAAntiCheat$PlayerData.class
+com/nolan/ava/util/BlockUtils.class
+com/nolan/ava/checks/MovementChecks.class

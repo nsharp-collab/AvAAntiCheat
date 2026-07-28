@@ -1,6 +1,18 @@
 # Changelog
+## DEV-[1.9.5]-SPLIT — 2026-07-28
+
+> **WARNING: THIS IS AN UNFINISHED TEST BUILD.**
+> *Please expect bugs and unstable behavior while testing.*
+---
+### What's New in v1.9.5-SPLIT
+
+* **Codebase Refactoring:** Split the single main Java file into multiple separate classes to improve readability and maintainability.
+* **Auto-Updater Fix:** Resolved an issue where version numbers were being generated incorrectly.
+* **Speed Check Fix:** Adjusted latency grace periods to properly account for lagging players.
+---
+
 ## DEV-[1.9.5]-MATH - 2026-03-17
-AvA AntiCheat - Changelog
+
 # THIS IS A TESTING BUILD THAT IS STILL IN TESTING, THIS IS NOT FINISHED AT ALL, BE WARNED WHEN USING IT
 v1.9.5 - Advanced Math & Performance Update
 -------------------------------------------

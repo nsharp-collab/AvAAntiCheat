@@ -16,102 +16,44 @@
 
 package com.nolan.ava;
 
-// Grabbing all the necessary Bukkit and Java utilities we need
+import com.nolan.ava.checks.ChatCheck;
+import com.nolan.ava.checks.CombatChecks;
+import com.nolan.ava.checks.MovementChecks;
+import com.nolan.ava.commands.ACCommandExecutor;
+import com.nolan.ava.data.PlayerData;
+import com.nolan.ava.listeners.AvAListener;
+import com.nolan.ava.util.HardwareManager;
+import com.nolan.ava.util.LogManager;
+import com.nolan.ava.util.UpdateManager;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
-import org.bukkit.ChatColor;
-import org.bukkit.Material;
-import org.bukkit.Location;
 import org.bukkit.Bukkit;
-import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
-import org.bukkit.entity.Player;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Projectile;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerAnimationEvent;
-import org.bukkit.event.player.PlayerAnimationType;
-import org.bukkit.event.player.PlayerRiptideEvent;
-import org.bukkit.event.player.PlayerRegisterChannelEvent;
-import org.bukkit.event.player.PlayerCommandPreprocessEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.entity.EntityToggleGlideEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.ProjectileHitEvent;
-import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
-import org.bukkit.plugin.messaging.PluginMessageListener;
-import org.bukkit.potion.PotionEffectType;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.enchantments.Enchantment;
-import org.bukkit.boss.BossBar;
+import org.bukkit.ChatColor;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
-import org.bukkit.util.Vector;
-import org.bukkit.util.RayTraceResult;
-import org.bukkit.FluidCollisionMode;
+import org.bukkit.boss.BossBar;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.SimplePie;
 
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.HashSet;
-import java.util.Set;
-
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
-public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecutor, PluginMessageListener {
+public class AvAAntiCheat extends JavaPlugin {
 
     // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "DEV-1.9.5-INFO1";
+    private static final String AC_VERSION = "DEV-1.9.5-SPLIT";
     private static final String AC_AUTHOR = "Nolan";
-
-    // Stuff for checking GitHub to see if we have a newer version
-    private static final String GITHUB_VERSION_URL = "https://raw.githubusercontent.com/nsharp-collab/AvAAntiCheat/refs/heads/main/version.txt";
-    private static final String GITHUB_JAR_URL = "https://github.com/nsharp-collab/AvAAntiCheat/releases/latest/download/AvAAntiCheat.jar";
-    private static final String GITHUB_CHANGELOG_URL = "https://raw.githubusercontent.com/nsharp-collab/AvAAntiCheat/refs/heads/main/changelog.txt";
-    
-    private boolean isUpdateAvailable = false;
-    private String latestVersion = AC_VERSION;
-    private String updateChangelog = "No changelog available.";
-    private boolean autoUpdateEnabled = true;
+    public static final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
 
     private int currentAntiCheatMode = 0;
-    
-    // Hardware capability tracker
-    private String currentHardwareMode = "OPTIMIZED_LIGHT";
-    private boolean hardwareModeForced = false; 
-    
-    // Prefixes to ignore in the spam checker
-    private final List<String> COMMAND_PREFIXES = Arrays.asList("#", "%");
 
     // Toggles for our various cheat checks
     private boolean checkFlightEnabled = true;
@@ -124,274 +66,173 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
     private List<String> bannedMods = new ArrayList<>();
 
-    // Some tuning values for our movement checks
-    private final double MAX_FALL_DISTANCE = 0.5;
-    private int flyViolationLimit = 5;
-
     private double baseSpeedLimit = 0.65;
     private double iceSpeedLimit = 1.3;
     private int speedViolationLimit = 5;
     private long glideGracePeriodMs = 7000;
 
+    private int flyViolationLimit = 5;
     private int spiderViolationLimit = 5;
-
-    // Chat rules
-    private final long MIN_CHAT_DELAY_MS = 1500;
     private int spamViolationLimit = 5;
-
-    // PvP stuff
-    private long combatTimeoutSeconds = 30;
-    private String combatTimerPosition = "ACTION_BAR"; 
-    private final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
-
-    private final long MAX_SWING_DELAY_MS = 200;
     private int sequenceViolationLimit = 5;
-
-    private final long MIN_ATTACK_DELAY_MS = 200;
     private int attackSpeedViolationLimit = 5;
 
-    // Logging configurations
+    private long combatTimeoutSeconds = 30;
+    private String combatTimerPosition = "ACTION_BAR";
+
     private boolean enableFileLogging = true;
-    private boolean debugModeConsole = false; 
-    private File logFolder;
-    private File currentLogFile;
     private int maxLogFiles = 20;
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-    private static final SimpleDateFormat FILE_NAME_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
 
-    // Where we store runtime player data
-    private HashMap<UUID, PlayerData> playerDataMap = new HashMap<>();
-    private Set<UUID> combatLoggedPlayers = new HashSet<>();
+    private final HashMap<UUID, PlayerData> playerDataMap = new HashMap<>();
+    private final Set<UUID> combatLoggedPlayers = new HashSet<>();
 
-    private static class PlayerData {
-        String clientBrand = "Unknown"; // 1.21 Brand tracking
-
-        int flyViolations = 0;
-        int spiderViolations = 0;
-        int spiderTicks = 0;
-        int speedViolations = 0;
-        int spamViolations = 0;
-        
-        long lastChatTime = 0;
-        String lastMessage = "";
-        
-        long combatEndTime = 0;
-        long lastDamageTime = 0;
-        UUID lastAttacker = null;
-        BossBar combatBossBar = null; 
-        
-        int sequenceViolations = 0;
-        long lastAttackTime = 0;
-        int attackSpeedViolations = 0;
-        long lastAttackSpeedViolationTime = 0;
-        
-        boolean isGliding = false;
-        long lastGlideTime = 0;
-        long glideEndTime = 0; 
-        
-        boolean isRiptiding = false;
-        boolean isWindBursting = false; 
-        
-        long lastBreezeBoostTime = 0;
-        long lastVelocityTime = 0;
-
-        long lastMoveTime = System.currentTimeMillis();
-        double lastDeltaY = 0.0;
-        boolean wasOnGround = true;
-
-        public boolean isInCombat() {
-            return System.currentTimeMillis() < combatEndTime;
-        }
-    }
+    private HardwareManager hardwareManager;
+    private LogManager logManager;
+    private UpdateManager updateManager;
 
     @Override
     public void onEnable() {
-        detectHardwareCapabilities();
+        hardwareManager = new HardwareManager(getLogger());
+        hardwareManager.detect();
 
         if (!getDataFolder().exists()) getDataFolder().mkdirs();
-        
-        logFolder = new File(getDataFolder(), "logs");
+
+        File logFolder = new File(getDataFolder(), "logs");
         if (!logFolder.exists()) logFolder.mkdirs();
 
-        int pluginId = 28550; 
-        Metrics metrics = new Metrics(this, pluginId);
-        
         saveDefaultConfig();
-        
-        int currentConfigVersion = 3; 
+
+        int currentConfigVersion = 3;
         if (getConfig().getInt("config-version", 0) < currentConfigVersion) {
             getLogger().warning("Your config.yml is outdated! Renaming to config-old.yml and generating a fresh one...");
-            
+
             File configFile = new File(getDataFolder(), "config.yml");
             File oldConfigFile = new File(getDataFolder(), "config-old.yml");
-            
+
             if (oldConfigFile.exists()) oldConfigFile.delete();
-            
+
             if (configFile.renameTo(oldConfigFile)) {
-                saveDefaultConfig(); 
+                saveDefaultConfig();
                 reloadConfig();
             } else {
                 getLogger().severe("Failed to backup outdated config.yml!");
             }
         }
-        
+
+        logManager = new LogManager(this, logFolder, enableFileLogging, maxLogFiles);
+        updateManager = new UpdateManager(this, AC_VERSION, AC_PREFIX, true);
+
         loadConfigValues();
 
         if (enableFileLogging) {
-            setupLoggingSession();
+            logManager.setupLoggingSession();
         }
 
+        int pluginId = 28550;
+        Metrics metrics = new Metrics(this, pluginId);
         try {
             metrics.addCustomChart(new SimplePie("anti_cheat_mode", () -> getModeDescription(currentAntiCheatMode)));
-            metrics.addCustomChart(new SimplePie("hardware_profile", () -> currentHardwareMode));
+            metrics.addCustomChart(new SimplePie("hardware_profile", hardwareManager::getCurrentHardwareMode));
         } catch (Exception e) {
             getLogger().warning("Couldn't set up bStats chart: " + e.getMessage());
         }
 
-        // Register incoming plugin channels for Brand reading (Strictly 1.13+ Format)
-        getServer().getMessenger().registerIncomingPluginChannel(this, "minecraft:brand", this);
+        MovementChecks movementChecks = new MovementChecks(this);
+        CombatChecks combatChecks = new CombatChecks(this);
+        ChatCheck chatCheck = new ChatCheck(this);
+        AvAListener listener = new AvAListener(this, movementChecks, combatChecks, chatCheck);
 
-        // Extremely important: This allows the server to listen to plugin message events properly
+        // Register incoming plugin channels for Brand reading (Strictly 1.13+ Format)
+        getServer().getMessenger().registerIncomingPluginChannel(this, "minecraft:brand", listener);
+
+        // This allows the server to send plugin messages properly (e.g. BungeeCord hooks)
         getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
 
-        getServer().getPluginManager().registerEvents(this, this);
-        getCommand("ac").setExecutor(this);
-        getCommand("secretdisable").setExecutor(this);
+        getServer().getPluginManager().registerEvents(listener, this);
 
-        Bukkit.getScheduler().runTaskTimer(this, () -> {
-            long now = System.currentTimeMillis();
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                PlayerData data = playerDataMap.get(p.getUniqueId());
-                if (data != null) {
-                    if (!combatTimerPosition.equalsIgnoreCase("BOSS_BAR") && data.combatBossBar != null) {
-                        data.combatBossBar.removeAll();
-                        data.combatBossBar = null;
-                    }
+        ACCommandExecutor commandExecutor = new ACCommandExecutor(this);
+        getCommand("ac").setExecutor(commandExecutor);
+        getCommand("secretdisable").setExecutor(commandExecutor);
 
-                    if (data.isInCombat()) {
-                        long secondsLeft = (data.combatEndTime - now) / 1000;
-                        if (secondsLeft > 0) {
-                            String message = ChatColor.RED + "⚔ In Combat: " + secondsLeft + "s ⚔";
-
-                            if (combatTimerPosition.equalsIgnoreCase("BOSS_BAR")) {
-                                if (data.combatBossBar == null) {
-                                    data.combatBossBar = Bukkit.createBossBar(message, BarColor.RED, BarStyle.SOLID);
-                                    data.combatBossBar.addPlayer(p);
-                                }
-                                data.combatBossBar.setTitle(message);
-                                double progress = (double) secondsLeft / combatTimeoutSeconds;
-                                data.combatBossBar.setProgress(Math.max(0.0, Math.min(1.0, progress)));
-                            } else if (combatTimerPosition.equalsIgnoreCase("SUBTITLE")) {
-                                p.sendTitle("", message, 0, 30, 0);
-                            } else {
-                                p.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(message));
-                            }
-                        }
-                    } else if (data.combatEndTime > 0) {
-                        data.combatEndTime = 0;
-                        data.lastAttacker = null;
-                        String clearMsg = ChatColor.GREEN + "You are no longer in combat.";
-
-                        if (data.combatBossBar != null) {
-                            data.combatBossBar.removeAll();
-                            data.combatBossBar = null;
-                        }
-
-                        if (combatTimerPosition.equalsIgnoreCase("SUBTITLE")) {
-                            p.sendTitle("", clearMsg, 0, 40, 10);
-                        } else if (combatTimerPosition.equalsIgnoreCase("ACTION_BAR")) {
-                            p.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(clearMsg));
-                        }
-                    }
-                }
-            }
-        }, 20L, 20L);
+        Bukkit.getScheduler().runTaskTimer(this, this::tickCombatTimers, 20L, 20L);
 
         Bukkit.getScheduler().runTaskLater(this, this::sendStartupBanner, 60L);
 
         logToFile("SYSTEM", "Plugin Enabled - Session Started (Version " + AC_VERSION + ")");
 
-        checkVersionAndDownload();
-    } 
+        updateManager.checkVersionAndDownload();
+    }
 
     @Override
-    public void onPluginMessageReceived(String channel, Player player, byte[] message) {
-        // Modern 1.13+ formatting
-        if (channel.equals("minecraft:brand")) {
-            try {
-                // Minecraft prefixes packet strings with a length byte. 
-                // For a short string like a brand name, it's exactly 1 byte.
-                int length = message[0]; 
-                String brand = new String(message, 1, length, StandardCharsets.UTF_8);
-                
-                PlayerData data = playerDataMap.get(player.getUniqueId());
-                if (data != null) {
-                    data.clientBrand = brand;
+    public void onDisable() {
+        for (PlayerData data : playerDataMap.values()) {
+            if (data.combatBossBar != null) {
+                data.combatBossBar.removeAll();
+            }
+        }
+
+        getServer().getConsoleSender().sendMessage(AC_PREFIX + ChatColor.RED + "AvA anti-cheat shutting down.");
+        logToFile("SYSTEM", "Plugin Disabled");
+    }
+
+    private void tickCombatTimers() {
+        long now = System.currentTimeMillis();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            PlayerData data = playerDataMap.get(p.getUniqueId());
+            if (data == null) continue;
+
+            if (!combatTimerPosition.equalsIgnoreCase("BOSS_BAR") && data.combatBossBar != null) {
+                data.combatBossBar.removeAll();
+                data.combatBossBar = null;
+            }
+
+            if (data.isInCombat()) {
+                long secondsLeft = (data.combatEndTime - now) / 1000;
+                if (secondsLeft > 0) {
+                    String message = ChatColor.RED + "⚔ In Combat: " + secondsLeft + "s ⚔";
+
+                    if (combatTimerPosition.equalsIgnoreCase("BOSS_BAR")) {
+                        if (data.combatBossBar == null) {
+                            data.combatBossBar = Bukkit.createBossBar(message, BarColor.RED, BarStyle.SOLID);
+                            data.combatBossBar.addPlayer(p);
+                        }
+                        data.combatBossBar.setTitle(message);
+                        double progress = (double) secondsLeft / combatTimeoutSeconds;
+                        data.combatBossBar.setProgress(Math.max(0.0, Math.min(1.0, progress)));
+                    } else if (combatTimerPosition.equalsIgnoreCase("SUBTITLE")) {
+                        p.sendTitle("", message, 0, 30, 0);
+                    } else {
+                        p.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(message));
+                    }
                 }
-            } catch (Exception e) {
-                // If the packet format is weird, fail silently
-            }
-        }
-    }
+            } else if (data.combatEndTime > 0) {
+                data.combatEndTime = 0;
+                data.lastAttacker = null;
+                String clearMsg = ChatColor.GREEN + "You are no longer in combat.";
 
-    private void detectHardwareCapabilities() {
-        if (hardwareModeForced) return; 
-
-        int usableThreads = Runtime.getRuntime().availableProcessors();
-        
-        long start = System.nanoTime();
-        for (int i = 0; i < 1_000_000; i++) {
-            Math.sqrt(i);
-        }
-        long duration = System.nanoTime() - start;
-        
-        boolean fastCores = duration < 8_000_000; 
-
-        if (usableThreads >= 6 && fastCores) {
-            this.currentHardwareMode = "HIGH_PERFORMANCE";
-        } else {
-            this.currentHardwareMode = "OPTIMIZED_LIGHT";
-        }
-        
-        getLogger().info("AvA Hardware Profiler: Mode set to " + this.currentHardwareMode + " (Threads: " + usableThreads + ", Fast Cores: " + fastCores + ", Startup Time: " + (duration/1000000.0) + "ms)");
-    }
-
-    private boolean isBedrock(Player player) {
-        if (Bukkit.getPluginManager().isPluginEnabled("Geyser-Spigot")) {
-            try {
-                return org.geysermc.geyser.api.GeyserApi.api().isBedrockPlayer(player.getUniqueId());
-            } catch (NoClassDefFoundError | Exception ignored) {
-            }
-        }
-        return false;
-    }
-
-    private int getPlayerPing(Player player) {
-        if (isBedrock(player)) {
-            try {
-                org.geysermc.geyser.api.connection.GeyserConnection connection = 
-                    org.geysermc.geyser.api.GeyserApi.api().connectionByUuid(player.getUniqueId());
-                
-                if (connection != null) {
-                    java.lang.reflect.Method pingMethod = connection.getClass().getMethod("ping");
-                    int bedrockPing = (int) pingMethod.invoke(connection);
-                    return bedrockPing + 75; 
+                if (data.combatBossBar != null) {
+                    data.combatBossBar.removeAll();
+                    data.combatBossBar = null;
                 }
-            } catch (Exception ignored) {
+
+                if (combatTimerPosition.equalsIgnoreCase("SUBTITLE")) {
+                    p.sendTitle("", clearMsg, 0, 40, 10);
+                } else if (combatTimerPosition.equalsIgnoreCase("ACTION_BAR")) {
+                    p.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(clearMsg));
+                }
             }
-            return 125; 
         }
-        
-        return player.getPing();
     }
 
-    private void loadConfigValues() {
+    public void loadConfigValues() {
         currentAntiCheatMode = getConfig().getInt("default-mode", 1);
-        
+
         enableFileLogging = getConfig().getBoolean("enable-logging", true);
         maxLogFiles = getConfig().getInt("max-logs", 20);
-        autoUpdateEnabled = getConfig().getBoolean("auto-update", true);
-        
+        boolean autoUpdateEnabled = getConfig().getBoolean("auto-update", true);
+        if (updateManager != null) updateManager.setAutoUpdateEnabled(autoUpdateEnabled);
+        if (logManager != null) logManager.updateSettings(enableFileLogging, maxLogFiles);
+
         checkFlightEnabled = getConfig().getBoolean("enabled-checks.flight", true);
         checkSpeedEnabled = getConfig().getBoolean("enabled-checks.speed", true);
         checkSpiderEnabled = getConfig().getBoolean("enabled-checks.spider", true);
@@ -405,7 +246,7 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
 
         flyViolationLimit = getConfig().getInt("kick-limits.flight", 5);
         speedViolationLimit = getConfig().getInt("kick-limits.speed", 10);
-        spiderViolationLimit = getConfig().getInt("kick-limits.spider", 5); 
+        spiderViolationLimit = getConfig().getInt("kick-limits.spider", 5);
         spamViolationLimit = getConfig().getInt("kick-limits.chat-spam", 5);
         sequenceViolationLimit = getConfig().getInt("kick-limits.sequence", 5);
         attackSpeedViolationLimit = getConfig().getInt("kick-limits.attack-speed", 5);
@@ -413,426 +254,37 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         baseSpeedLimit = getConfig().getDouble("speed-check.base-limit", 0.65);
         iceSpeedLimit = getConfig().getDouble("speed-check.ice-limit", 1.3);
         glideGracePeriodMs = getConfig().getLong("speed-check.grace-period-ms", 7000);
-        
+
         combatTimeoutSeconds = getConfig().getLong("combat-timeout-seconds", 30);
         combatTimerPosition = getConfig().getString("combat-timer-position", "ACTION_BAR");
     }
 
-    @Override
-    public void onDisable() {
-        for (PlayerData data : playerDataMap.values()) {
-            if (data.combatBossBar != null) {
-                data.combatBossBar.removeAll();
-            }
-        }
-        
-        getServer().getConsoleSender().sendMessage(AC_PREFIX + ChatColor.RED + "AvA anti-cheat shutting down.");
-        logToFile("SYSTEM", "Plugin Disabled");
-    }
-
     private void sendStartupBanner() {
         String dash = ChatColor.GRAY + "──────────────────────────────────────────────────";
-        
+
         String[] art = {
-            dash,
-            ChatColor.GOLD + "         _                      _   ",
-            ChatColor.GOLD + "        / \\      __   __      / \\  ",
-            ChatColor.GOLD + "       / _ \\     \\ \\ / /     / _ \\ ",
-            ChatColor.GOLD + "      / ___ \\     \\ V /     / ___ \\",
-            ChatColor.GOLD + "     /_/   \\_\\     \\_/     /_/   \\_\\",
-            " ",
-            ChatColor.YELLOW + "  AvA AntiCheat v" + AC_VERSION,
-            ChatColor.YELLOW + "  Running on " + Bukkit.getBukkitVersion(),
-            ChatColor.YELLOW + "  Author: " + AC_AUTHOR,
-            ChatColor.GRAY +   "  Active Mode: " + currentAntiCheatMode + " (" + getModeDescription(currentAntiCheatMode) + ")",
-            ChatColor.GRAY +   "  Hardware Profile: " + currentHardwareMode,
-            ChatColor.GRAY +   "  Auto-Update: " + (autoUpdateEnabled ? ChatColor.GREEN + "Enabled" : ChatColor.RED + "Disabled"),
-            ChatColor.AQUA +   "  Discord: https://discord.gg/CNb3Qwezpa",
-            dash
+                dash,
+                ChatColor.GOLD + "         _                      _   ",
+                ChatColor.GOLD + "        / \\      __   __      / \\  ",
+                ChatColor.GOLD + "       / _ \\     \\ \\ / /     / _ \\ ",
+                ChatColor.GOLD + "      / ___ \\     \\ V /     / ___ \\",
+                ChatColor.GOLD + "     /_/   \\_\\     \\_/     /_/   \\_\\",
+                " ",
+                ChatColor.YELLOW + "  AvA AntiCheat v" + AC_VERSION,
+                ChatColor.YELLOW + "  Running on " + Bukkit.getBukkitVersion(),
+                ChatColor.YELLOW + "  Author: " + AC_AUTHOR,
+                ChatColor.GRAY + "  Active Mode: " + currentAntiCheatMode + " (" + getModeDescription(currentAntiCheatMode) + ")",
+                ChatColor.GRAY + "  Hardware Profile: " + hardwareManager.getCurrentHardwareMode(),
+                ChatColor.GRAY + "  Auto-Update: " + (updateManager.isAutoUpdateEnabled() ? ChatColor.GREEN + "Enabled" : ChatColor.RED + "Disabled"),
+                ChatColor.AQUA + "  Discord: https://discord.gg/CNb3Qwezpa",
+                dash
         };
         for (String line : art) {
             getServer().getConsoleSender().sendMessage(line);
         }
     }
 
-    private void setupLoggingSession() {
-        String fileName = "log_" + FILE_NAME_FORMAT.format(new Date()) + ".txt";
-        currentLogFile = new File(logFolder, fileName);
-        
-        try {
-            currentLogFile.createNewFile();
-        } catch (IOException e) {
-            getLogger().severe("Could not create new log file: " + e.getMessage());
-        }
-
-        Bukkit.getScheduler().runTaskAsynchronously(this, this::rotateLogs);
-    }
-
-    private void rotateLogs() {
-        File[] files = logFolder.listFiles((dir, name) -> name.endsWith(".txt"));
-        if (files != null && files.length > maxLogFiles) {
-            Arrays.sort(files, Comparator.comparingLong(File::lastModified));
-            
-            int filesToDelete = files.length - maxLogFiles;
-            for (int i = 0; i < filesToDelete; i++) {
-                if (files[i].delete()) {
-                    getLogger().info("Cleaned up an old log file: " + files[i].getName());
-                }
-            }
-        }
-    }
-
-    private void logToFile(String source, String message) {
-        if (debugModeConsole) {
-            getServer().getConsoleSender().sendMessage(ChatColor.DARK_GRAY + "[AvA-Debug | " + source + "] " + ChatColor.GRAY + message);
-        }
-
-        if (!enableFileLogging || currentLogFile == null) return;
-
-        // FIXED: Stop attempting async tasks when the plugin is already disabled!
-        if (!this.isEnabled()) {
-            try (FileWriter fw = new FileWriter(currentLogFile, true)) {
-                String timestamp = DATE_FORMAT.format(new Date());
-                fw.write("[" + timestamp + "] [" + source + "] " + message + "\n");
-            } catch (IOException e) {
-                getLogger().severe("Uh oh, failed to write to log: " + e.getMessage());
-            }
-            return;
-        }
-
-        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-            try (FileWriter fw = new FileWriter(currentLogFile, true)) {
-                String timestamp = DATE_FORMAT.format(new Date());
-                fw.write("[" + timestamp + "] [" + source + "] " + message + "\n");
-            } catch (IOException e) {
-                getLogger().severe("Uh oh, failed to write to log: " + e.getMessage());
-            }
-        });
-    }
-
-    private void checkVersionAndDownload() {
-        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-            try {
-                try (InputStream in = new URL(GITHUB_VERSION_URL).openStream();
-                     BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
-                    latestVersion = reader.readLine();
-                }
-
-                try (InputStream in = new URL(GITHUB_CHANGELOG_URL).openStream();
-                     BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
-                     StringBuilder changelogBuilder = new StringBuilder();
-                     String line;
-                     while ((line = reader.readLine()) != null) {
-                         changelogBuilder.append(line).append("\n");
-                     }
-                     if (changelogBuilder.length() > 0) {
-                         updateChangelog = changelogBuilder.toString();
-                     }
-                } catch (Exception ignored) {
-                }
-                
-                if (latestVersion != null) {
-                    if (isNewerVersion(AC_VERSION, latestVersion)) {
-                        isUpdateAvailable = true;
-                        getLogger().info("A new version is available: " + latestVersion);
-                        getLogger().info("--- CHANGELOG ---");
-                        getLogger().info(updateChangelog);
-                        getLogger().info("-----------------");
-
-                        if (autoUpdateEnabled) {
-                            downloadUpdate();
-                        }
-                    } else {
-                        getLogger().info("You are running the latest version (or a development build).");
-                    }
-                }
-            } catch (IOException e) {
-                getLogger().warning("Could not check for updates: " + e.getMessage());
-            }
-        });
-    }
-
-    private boolean isNewerVersion(String current, String online) {
-        try {
-            String[] currentParts = current.split("\\.");
-            String[] onlineParts = online.split("\\.");
-            int length = Math.max(currentParts.length, onlineParts.length);
-            
-            for (int i = 0; i < length; i++) {
-                int currentVal = i < currentParts.length ? Integer.parseInt(currentParts[i].replaceAll("[^0-9]", "")) : 0;
-                int onlineVal = i < onlineParts.length ? Integer.parseInt(onlineParts[i].replaceAll("[^0-9]", "")) : 0;
-                
-                if (onlineVal > currentVal) return true;  
-                if (currentVal > onlineVal) return false; 
-            }
-        } catch (Exception e) {
-            return !current.equalsIgnoreCase(online);
-        }
-        return false;
-    }
-
-    private void downloadUpdate() {
-        getLogger().info("Automatically pulling down the latest update...");
-        
-        File updateFolder = Bukkit.getServer().getUpdateFolderFile();
-        if (!updateFolder.exists()) {
-            updateFolder.mkdirs();
-        }
-
-        File targetFile = new File(updateFolder, getFile().getName());
-
-        try (InputStream in = new URL(GITHUB_JAR_URL).openStream()) {
-            Files.copy(in, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            
-            getLogger().info("Update downloaded to " + targetFile.getPath());
-            getLogger().info("The new version will automatically apply on the next server restart.");
-            
-            Bukkit.getScheduler().runTask(this, () -> {
-                Bukkit.broadcast(AC_PREFIX + ChatColor.GREEN + "Plugin update " + latestVersion + " is ready. Restart the server to apply.", "ava.admin");
-            });
-            
-        } catch (IOException e) {
-            getLogger().severe("Man, auto-download failed: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        String senderName = sender instanceof Player ? sender.getName() : "CONSOLE";
-        String fullCommand = "/" + command.getName() + " " + String.join(" ", args);
-        
-        if (command.getName().equalsIgnoreCase("ac")) {
-            logToFile(senderName, "Attempted AC command: " + fullCommand);
-            
-            if (!sender.hasPermission("ava.admin")) {
-                sender.sendMessage(AC_PREFIX + ChatColor.RED + "You don't have permission to do that.");
-                return true;
-            }
-
-            if (args.length == 0) {
-                sender.sendMessage(AC_PREFIX + ChatColor.AQUA + "Usage: /ac <status|start <1-4>|stop|kick|mods|info|checkop|reload|perf|debug>");
-                return true;
-            }
-
-            String subCommand = args[0].toLowerCase();
-            
-            if (subCommand.equals("start")) {
-                 if (args.length != 2) {
-                     sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac start <1|2|3|4>");
-                     sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "1: ALL, 2: Flight/Move, 3: PvP, 4: Chat Spam");
-                     return true;
-                 }
-                try {
-                    int mode = Integer.parseInt(args[1]);
-                    if (mode < 1 || mode > 4) {
-                        sender.sendMessage(AC_PREFIX + ChatColor.RED + "Invalid mode. Stick to 1, 2, 3, or 4.");
-                        return true;
-                    }
-                    currentAntiCheatMode = mode;
-                    String modeDesc = getModeDescription(mode);
-                    getServer().broadcastMessage(AC_PREFIX + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat ACTIVE (Mode " + mode + ": " + modeDesc + ")"); 
-                    sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Anti-Cheat Mode " + mode + " activated.");
-                    logToFile(senderName, "EXECUTED AC Mode " + mode + " (" + modeDesc + ")");
-                } catch (NumberFormatException e) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Make sure you enter a number (1-4).");
-                }
-                return true;
-            }
-            
-            if (subCommand.equals("stop")) {
-                currentAntiCheatMode = 0;
-                getServer().broadcastMessage(AC_PREFIX + ChatColor.YELLOW + "Anti-Cheat has been temporarily DISABLED.");
-                logToFile(senderName, "EXECUTED AC Mode 0 (Disabled)");
-                return true;
-            }
-
-            if (subCommand.equals("perf")) {
-                if (args.length != 2) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac perf <high|light|auto>");
-                    return true;
-                }
-                String modeReq = args[1].toLowerCase();
-                if (modeReq.equals("high")) {
-                    currentHardwareMode = "HIGH_PERFORMANCE";
-                    hardwareModeForced = true;
-                    sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Hardware mode forced to HIGH_PERFORMANCE (Strict Math enabled).");
-                } else if (modeReq.equals("light")) {
-                    currentHardwareMode = "OPTIMIZED_LIGHT";
-                    hardwareModeForced = true;
-                    sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Hardware mode forced to OPTIMIZED_LIGHT (Pi-Mode fallback enabled).");
-                } else if (modeReq.equals("auto")) {
-                    hardwareModeForced = false;
-                    detectHardwareCapabilities();
-                    sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Hardware mode reset to AUTO. Detected: " + currentHardwareMode);
-                } else {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Invalid option. Use high, light, or auto.");
-                }
-                logToFile(senderName, "Changed hardware mode to " + currentHardwareMode);
-                return true;
-            }
-
-            if (subCommand.equals("mods")) {
-                if (args.length < 2) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac mods <player>");
-                    return true;
-                }
-                Player target = getServer().getPlayer(args[1]);
-                if (target == null) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " isn't online.");
-                    return true;
-                }
-                Set<String> channels = target.getListeningPluginChannels();
-                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Registered Handshake Channels for " + target.getName() + ":");
-                if (channels == null || channels.isEmpty()) {
-                    sender.sendMessage(ChatColor.GRAY + " - None (Either Vanilla, Bedrock, or a lying hacked client)");
-                } else {
-                    for (String channel : channels) {
-                        sender.sendMessage(ChatColor.AQUA + " - " + channel);
-                    }
-                }
-                return true;
-            }
-            
-            if (subCommand.equals("info")) {
-                if (args.length < 3) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac info <player> <true|false (show perms)>");
-                    return true;
-                }
-                Player target = getServer().getPlayer(args[1]);
-                if (target == null) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " isn't online.");
-                    return true;
-                }
-
-                boolean showPerms = false;
-                if (args[2].equalsIgnoreCase("true")) {
-                    showPerms = true;
-                } else if (!args[2].equalsIgnoreCase("false")) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Please specify true or false for the <perms> flag.");
-                    return true;
-                }
-
-                sender.sendMessage(ChatColor.DARK_GRAY + "---[ " + ChatColor.GOLD + "AvA Player Info: " + target.getName() + ChatColor.DARK_GRAY + " ]---");
-                
-                sender.sendMessage(ChatColor.YELLOW + "UUID: " + ChatColor.WHITE + target.getUniqueId().toString());
-                
-                boolean isBedrockPlayer = isBedrock(target);
-                sender.sendMessage(ChatColor.YELLOW + "Platform: " + ChatColor.WHITE + (isBedrockPlayer ? "Bedrock (Geyser)" : "Java"));
-                
-                // --- Fetch the brand safely from our custom listener ---
-                PlayerData targetData = playerDataMap.get(target.getUniqueId());
-                String clientBrand = (targetData != null && targetData.clientBrand != null) ? targetData.clientBrand : "Unknown";
-                
-                sender.sendMessage(ChatColor.YELLOW + "Client Brand: " + ChatColor.WHITE + clientBrand);
-                
-                sender.sendMessage(ChatColor.YELLOW + "Ping: " + ChatColor.WHITE + getPlayerPing(target) + "ms");
-                
-                Set<String> channels = target.getListeningPluginChannels();
-                if (channels == null || channels.isEmpty()) {
-                    sender.sendMessage(ChatColor.YELLOW + "Channels/Mods: " + ChatColor.GRAY + "None");
-                } else {
-                    sender.sendMessage(ChatColor.YELLOW + "Channels/Mods (" + channels.size() + "): " + ChatColor.GRAY + String.join(", ", channels));
-                }
-
-                if (showPerms) {
-                    List<String> perms = new ArrayList<>();
-                    for (org.bukkit.permissions.PermissionAttachmentInfo pInfo : target.getEffectivePermissions()) {
-                        perms.add(pInfo.getPermission() + "(" + pInfo.getValue() + ")");
-                    }
-                    sender.sendMessage(ChatColor.YELLOW + "Permissions: " + ChatColor.GRAY + String.join(", ", perms));
-                }
-
-                sender.sendMessage(ChatColor.DARK_GRAY + "--------------------------------");
-                return true;
-            }
-
-            if (subCommand.equals("debug")) {
-                debugModeConsole = !debugModeConsole;
-                sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Console debugging is now " + (debugModeConsole ? "ON" : "OFF") + ".");
-                logToFile(senderName, "Toggled debug mode to " + debugModeConsole);
-                return true;
-            }
-
-            if (subCommand.equals("status")) {
-                String activeStatus = currentAntiCheatMode > 0 ? ChatColor.GREEN + "ACTIVE" : ChatColor.RED + "DISABLED";
-                String modeDesc = getModeDescription(currentAntiCheatMode);
-                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Status: " + activeStatus + " | Version: " + AC_VERSION);
-                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Current Mode: " + currentAntiCheatMode + " (" + modeDesc + ")");
-                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Hardware Profile: " + currentHardwareMode + (hardwareModeForced ? " (Forced)" : " (Auto)"));
-                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Active Checks: " + getEnabledChecksString());
-                
-                if (isUpdateAvailable) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + ChatColor.BOLD + "UPDATE AVAILABLE: " + latestVersion);
-                    sender.sendMessage(AC_PREFIX + ChatColor.GRAY + "Changelog:\n" + updateChangelog);
-                    if(autoUpdateEnabled) {
-                         sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Auto-downloaded. Restart to apply.");
-                    } else {
-                         sender.sendMessage(AC_PREFIX + ChatColor.RED + "Auto-update disabled. Go grab it manually.");
-                    }
-                } else {
-                    sender.sendMessage(AC_PREFIX + ChatColor.GRAY + "Everything is fully up to date.");
-                }
-                return true;
-            }
-            
-            if (subCommand.equals("kick")) {
-                if (args.length < 2) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac kick <player> [reason]");
-                    return true;
-                }
-                Player target = getServer().getPlayer(args[1]);
-                if (target == null) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Can't find player " + args[1] + ". Are they offline?");
-                    return true;
-                }
-                String reason = args.length >= 3 ? String.join(" ", Arrays.copyOfRange(args, 2, args.length)) : "Kicked by Admin.";
-                target.kickPlayer(ChatColor.RED + "You were kicked: " + ChatColor.WHITE + reason);
-                getServer().broadcastMessage(AC_PREFIX + ChatColor.RED + target.getName() + " was kicked by " + sender.getName() + ".");
-                logToFile(senderName, "EXECUTED AC kick: " + target.getName() + " for: " + reason);
-                return true;
-            }
-
-            if (subCommand.equals("checkop")) {
-                if (args.length < 2) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Usage: /ac checkop <player>");
-                    return true;
-                }
-                Player target = getServer().getPlayer(args[1]);
-                if (target == null) {
-                    sender.sendMessage(AC_PREFIX + ChatColor.RED + "Player " + args[1] + " isn't online.");
-                    return true;
-                }
-                String status = target.isOp() ? ChatColor.GREEN + " [OP] " : ChatColor.RED + " [NOT OP] ";
-                sender.sendMessage(AC_PREFIX + ChatColor.YELLOW + target.getName() + "'s status: " + status);
-                return true;
-            }
-            
-            if (subCommand.equals("reload")) {
-                reloadConfig();
-                loadConfigValues();
-                
-                sender.sendMessage(AC_PREFIX + ChatColor.GREEN + "Configurations reloaded.");
-                logToFile(senderName, "EXECUTED AC reload.");
-                return true;
-            }
-
-            sender.sendMessage(AC_PREFIX + ChatColor.RED + "Unknown command. Try /ac for help.");
-            return true;
-        } 
-        else if (command.getName().equalsIgnoreCase("secretdisable")) {
-            if (!(sender instanceof Player)) return true;
-            Player player = (Player) sender;
-            if (player.isOp()) {
-                currentAntiCheatMode = 0;
-                player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Anti-Cheat is now secretly DISABLED (Mode 0).");
-                logToFile(player.getName(), "EXECUTED secretdisable (Mode 0)");
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    private String getModeDescription(int mode) {
+    public String getModeDescription(int mode) {
         switch (mode) {
             case 1: return "All Checks (Config Filtered)";
             case 2: return "Flight/Movement/Speed/Phase";
@@ -842,8 +294,8 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             default: return "Unknown";
         }
     }
-    
-    private String getEnabledChecksString() {
+
+    public String getEnabledChecksString() {
         StringBuilder sb = new StringBuilder();
         if (checkFlightEnabled) sb.append("Fly, ");
         if (checkSpeedEnabled) sb.append("Speed, ");
@@ -856,874 +308,24 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
         return sb.toString();
     }
 
-    private boolean isNearSolidBlock(Player player) {
-        Location loc = player.getLocation();
-        Block block = loc.getBlock();
-        return block.getRelative(BlockFace.NORTH).getType().isSolid() ||
-               block.getRelative(BlockFace.SOUTH).getType().isSolid() ||
-               block.getRelative(BlockFace.EAST).getType().isSolid() ||
-               block.getRelative(BlockFace.WEST).getType().isSolid();
-    }
-
-    private boolean isClimbable(Block block) {
-        Material type = block.getType();
-        if (type == Material.LADDER || type == Material.VINE || type == Material.SCAFFOLDING) return true;
-        
-        String name = type.name();
-        return name.contains("VINES") || name.contains("VINE");
-    }
-    
-    private boolean isIce(Block block) {
-        Material type = block.getType();
-        return type == Material.ICE || type == Material.PACKED_ICE || type == Material.BLUE_ICE;
-    }
-    
-    private boolean isSoulBlock(Block block) {
-        Material type = block.getType();
-        return type == Material.SOUL_SAND || type == Material.SOUL_SOIL;
-    }
-
-    private boolean isPartialHeightBlock(Block block) {
-        if (block == null) return false;
-
-        Material type = block.getType();
-
-        if (type == Material.SOUL_SAND || type == Material.SOUL_SOIL)
-            return true;
-
-        if (type == Material.FARMLAND)
-            return true;
-
-        if (type == Material.SNOW) 
-            return true;
-
-        if (type.name().endsWith("_CARPET"))
-            return true;
-
-        if (type.name().endsWith("_SLAB") || type.name().endsWith("_STAIRS"))
-            return true;
-
-        if (type == Material.HONEY_BLOCK || type == Material.MUD)
-            return true;
-
-        if (!type.isOccluding())
-            return true;
-
-        return false;
-    }
-
-    private boolean isInLiquid(Player player) {
-        Location loc = player.getLocation();
-        Block block = loc.getBlock();
-        Material mCenter = block.getType();
-        Material mBelow = block.getRelative(BlockFace.DOWN).getType();
-        Material mAbove = block.getRelative(BlockFace.UP).getType();
-        return mCenter == Material.WATER || mBelow == Material.WATER || mAbove == Material.WATER
-                || mCenter == Material.LAVA || mBelow == Material.LAVA || mAbove == Material.LAVA
-                || mCenter == Material.BUBBLE_COLUMN || mBelow == Material.BUBBLE_COLUMN || mAbove == Material.BUBBLE_COLUMN;
-    }
-
-    private boolean isHighMobilityItem(Player player) {
-        ItemStack item = player.getInventory().getItemInMainHand();
-        if (item == null || item.getType() == Material.AIR) return false;
-
-        String matName = item.getType().name();
-        if (matName.contains("MACE") || matName.contains("TRIDENT")) return true; 
-        
-        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
-            String displayName = ChatColor.stripColor(item.getItemMeta().getDisplayName()).toLowerCase();
-            if (displayName.contains("spear")) return true;
-        }
-        
-        return false;
-    }
-
-    private void checkSpider(PlayerMoveEvent event, PlayerData data) {
-        if (!checkSpiderEnabled) return;
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
-        
-        Player player = event.getPlayer();
-        if (player.getAllowFlight() || player.isGliding() || player.isSwimming() || isInLiquid(player)) {
-            data.spiderTicks = 0;
-            return;
-        }
-        
-        if (data.isRiptiding || data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) {
-            data.spiderTicks = 0;
-            return;
-        }
-        
-        if (player.hasPotionEffect(PotionEffectType.LEVITATION) || player.hasPotionEffect(PotionEffectType.JUMP_BOOST)) {
-            data.spiderTicks = 0;
-            return;
-        }
-
-        double deltaY = event.getTo().getY() - event.getFrom().getY();
-        if (deltaY > 0 && !player.isOnGround() && isNearSolidBlock(player)) {
-            Block b = player.getLocation().getBlock();
-            if (!isClimbable(b) && !isClimbable(b.getRelative(BlockFace.DOWN))) {
-                data.spiderTicks++;
-                if (data.spiderTicks > 10) {
-                    data.spiderViolations++;
-                    logToFile(player.getName(), "CHECK:Spider VIO=" + data.spiderViolations + " Ticks=" + data.spiderTicks);
-                    data.spiderTicks = 5; 
-                    if (data.spiderViolations > spiderViolationLimit) {
-                         punishPlayer(player, "Spider (WallClimb)", data.spiderViolations);
-                    }
-                }
-            } else {
-                data.spiderTicks = 0;
-            }
-        } else {
-            data.spiderTicks = 0;
-        }
-    }
-
-    private void checkFlight(PlayerMoveEvent event, PlayerData data) {
-        if (!checkFlightEnabled) return;
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return; 
-        
-        Player player = event.getPlayer();
-        Location from = event.getFrom();
-        Location to = event.getTo();
-
-        if (isClimbable(player.getLocation().getBlock()) || isClimbable(player.getLocation().getBlock().getRelative(BlockFace.DOWN))) {
-            data.flyViolations = 0;
-            return;
-        }
-
-        if (player.isGliding()) {
-             data.isGliding = true;
-             data.lastGlideTime = System.currentTimeMillis();
-             data.flyViolations = 0;
-             return;
-        }
-        if (System.currentTimeMillis() - data.lastGlideTime < 3000) {
-             data.flyViolations = 0;
-             return;
-        }
-        if (data.isGliding && player.isOnGround()) {
-            data.isGliding = false;
-        }
-
-        if (player.isRiptiding() || data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 14000)) {
-            data.flyViolations = 0; 
-            return;
-        }
-        if (System.currentTimeMillis() - data.lastVelocityTime < 10000) {
-            return;
-        }
-
-        if (player.getAllowFlight() || player.isSwimming() || player.hasPotionEffect(PotionEffectType.LEVITATION) || isInLiquid(player) || player.isInsideVehicle()) {
-            data.flyViolations = 0; 
-            return;
-        }
-
-        double deltaY = to.getY() - from.getY();
-        boolean isHighPower = currentHardwareMode.equals("HIGH_PERFORMANCE");
-        boolean wasOnGround = data.wasOnGround;
-        data.wasOnGround = player.isOnGround();
-
-        if (isHighPower) {
-            if (!player.isOnGround() && !wasOnGround && deltaY > 0) {
-                double expectedY = (data.lastDeltaY - 0.08) * 0.98;
-                int ping = getPlayerPing(player);
-                double pingMargin = (ping > 300) ? 0.05 : 0.0; 
-                
-                if (deltaY > (expectedY + 0.1 + pingMargin) && player.getFallDistance() < MAX_FALL_DISTANCE) {
-                    if (data.spiderTicks > 0) return;
-                    data.flyViolations++;
-                    logToFile(player.getName(), "CHECK:Flight (Physics) VIO=" + data.flyViolations + " Y=" + String.format("%.3f", deltaY) + " ExpectedY=" + String.format("%.3f", expectedY) + " Ping=" + ping + "ms");
-                    if (data.flyViolations > flyViolationLimit) {
-                        punishPlayer(player, "Flight", data.flyViolations);
-                    }
-                }
-            } else if (player.isOnGround()) {
-                if (data.flyViolations > 0) data.flyViolations--; 
-            }
-        } else {
-            if (!player.isOnGround() && deltaY > 0.05 && player.getFallDistance() < MAX_FALL_DISTANCE) {
-                if (deltaY > MAX_FALL_DISTANCE) {
-                    if (data.spiderTicks > 0) return;
-                    data.flyViolations++;
-                    logToFile(player.getName(), "CHECK:Flight VIO=" + data.flyViolations + " Y=" + String.format("%.3f", deltaY));
-                    if (data.flyViolations > flyViolationLimit) {
-                        punishPlayer(player, "Flight", data.flyViolations);
-                    }
-                }
-            } else if (player.isOnGround()) {
-                data.flyViolations = 0; 
-            }
-        }
-        
-        data.lastDeltaY = deltaY;
-    }
-
-    private void checkSpeed(PlayerMoveEvent event, PlayerData data) {
-        if (!checkSpeedEnabled) return;
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
-
-        Player player = event.getPlayer();
-
-        if (player.isGliding()) return;
-        if (player.isRiptiding()) return;
-        if (player.isSwimming()) return;
-        if (isInLiquid(player)) return;
-
-        if (player.hasPotionEffect(PotionEffectType.DOLPHINS_GRACE)) return;
-
-        if (player.getAllowFlight() || player.isFlying() || player.isInsideVehicle()) return;
-
-        if (data.isWindBursting || (System.currentTimeMillis() - data.lastBreezeBoostTime < 4000)) return;
-
-        if (System.currentTimeMillis() - data.lastVelocityTime < 4000) return;
-        
-        if (data.glideEndTime > 0 && (System.currentTimeMillis() - data.glideEndTime < glideGracePeriodMs)) return;
-
-        Location from = event.getFrom();
-        Location to = event.getTo();
-
-        double deltaX = to.getX() - from.getX();
-        double deltaZ = to.getZ() - from.getZ();
-        double horizontalDistance = Math.hypot(deltaX, deltaZ);
-
-        double speedLimit = baseSpeedLimit;
-
-        Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-        if (isIce(blockBelow)) {
-            speedLimit = iceSpeedLimit;
-        }
-
-        if (player.hasPotionEffect(PotionEffectType.SPEED)) {
-            int amplifier = player.getPotionEffect(PotionEffectType.SPEED).getAmplifier() + 1;
-            speedLimit += (amplifier * 0.15);
-        }
-
-        if (isSoulBlock(blockBelow)) {
-            ItemStack boots = player.getInventory().getBoots();
-            if (boots != null && boots.containsEnchantment(Enchantment.SOUL_SPEED)) {
-                int level = boots.getEnchantmentLevel(Enchantment.SOUL_SPEED);
-                speedLimit += (level * 0.2);
-            }
-        }
-
-        if (isHighMobilityItem(player)) {
-            speedLimit += 0.6;
-        }
-
-        long currentTime = System.currentTimeMillis();
-        long timeDiff = currentTime - data.lastMoveTime;
-        data.lastMoveTime = currentTime;
-        
-        if (timeDiff < 5) timeDiff = 5; 
-        double ticksElapsed = timeDiff / 50.0;
-        
-        int ping = getPlayerPing(player);
-        
-        double maxLagTicks = Math.min(20.0, Math.max(5.0, (ping + 100) / 50.0));
-        ticksElapsed = Math.min(ticksElapsed, maxLagTicks);
-
-        boolean isHighPower = currentHardwareMode.equals("HIGH_PERFORMANCE");
-
-        if (isHighPower) {
-            speedLimit -= 0.05; 
-            speedLimit = speedLimit * Math.max(1.0, ticksElapsed);
-        }
-
-        if (isBedrock(player)) {
-            speedLimit *= 1.15; 
-        }
-
-        if (!isHighPower && horizontalDistance < (speedLimit * 0.8)) {
-            return; 
-        }
-
-        if (horizontalDistance > speedLimit) {
-            data.speedViolations++;
-            logToFile(player.getName(),
-                    "CHECK:Speed VIO=" + data.speedViolations +
-                    " Dist=" + String.format("%.3f", horizontalDistance) +
-                    " Limit=" + String.format("%.3f", speedLimit) +
-                    " TicksDelta=" + String.format("%.2f", ticksElapsed) +
-                    " Ping=" + ping + "ms");
-
-            if (data.speedViolations > speedViolationLimit) {
-                punishPlayer(player, "Speed", data.speedViolations);
-            }
-        } else {
-            if (data.speedViolations > 0) data.speedViolations--; 
-        }
-    }
-
-    private void checkPhase(PlayerMoveEvent event, PlayerData data) {
-        if (!checkPhaseEnabled) return;
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 2) return;
-
-        Player player = event.getPlayer();
-
-        if (player.getAllowFlight() || player.isFlying()) return;
-        if (player.isSwimming()) return;
-        if (player.isRiptiding()) return;
-        if (isInLiquid(player)) return;
-        if (player.hasPotionEffect(PotionEffectType.DOLPHINS_GRACE)) return;
-        if (System.currentTimeMillis() - data.lastVelocityTime < 2000) return;
-
-        Location from = event.getFrom();
-        Location to = event.getTo();
-
-        if (from.getBlockX() == to.getBlockX() &&
-            from.getBlockY() == to.getBlockY() &&
-            from.getBlockZ() == to.getBlockZ()) {
-            return;
-        }
-
-        boolean isHighPower = currentHardwareMode.equals("HIGH_PERFORMANCE");
-        
-        if (isHighPower) {
-            double deltaY = to.getY() - from.getY();
-            
-            if (deltaY < -4.0) {
-                event.setTo(from);
-                player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't clip through the floor!");
-                logToFile(player.getName(), "CHECK:Phase - V-Clip Prevented! DeltaY=" + String.format("%.2f", deltaY));
-                return;
-            }
-            
-            Vector dir = to.toVector().subtract(from.toVector());
-            double dist = dir.length();
-            
-            int ping = getPlayerPing(player);
-            double rayTraceThreshold = (ping > 400) ? 0.6 : 0.4; 
-            
-            if (dist > rayTraceThreshold && dist < 10.0) { 
-                Location traceStart = from.clone().add(0, 1.0, 0);
-                
-                RayTraceResult trace = player.getWorld().rayTraceBlocks(traceStart, dir, dist, FluidCollisionMode.NEVER, true);
-                
-                if (trace != null && trace.getHitBlock() != null) {
-                    Block hit = trace.getHitBlock();
-                    if (hit.getType().isOccluding() && !isPartialHeightBlock(hit)) {
-                        event.setTo(from);
-                        player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't phase through blocks like that!");
-                        logToFile(player.getName(), "CHECK:Phase - RayTrace Intersected " + hit.getType().name() + " Ping=" + ping + "ms");
-                        return; 
-                    }
-                }
-            }
-        }
-
-        Block toBlockFeet = to.getBlock();
-        Block fromBlockFeet = from.getBlock();
-        Block blockBelow = player.getLocation().getBlock().getRelative(BlockFace.DOWN);
-
-        if (isPartialHeightBlock(blockBelow) || isSoulBlock(blockBelow)) return;
-        if (isPartialHeightBlock(fromBlockFeet) || isPartialHeightBlock(toBlockFeet)) return;
-
-        if (toBlockFeet.getType().isOccluding() &&
-            !fromBlockFeet.getType().isOccluding()) {
-
-            Block eyeBlock = player.getEyeLocation().getBlock();
-            if (!eyeBlock.getType().isOccluding()) return;
-
-            event.setTo(from);
-            player.sendMessage(AC_PREFIX + ChatColor.RED + "Hey! You can't phase through blocks like that!");
-            logToFile(player.getName(),
-                    "CHECK:Phase - Prevented phasing into " + toBlockFeet.getType().name());
-        }
-    }
-
-    private void checkSpam(AsyncPlayerChatEvent event, PlayerData data) {
-        if (!checkSpamEnabled) return;
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 4) return; 
-        
-        Player player = event.getPlayer();
-        String message = event.getMessage().trim();
-        long currentTime = System.currentTimeMillis();
-        boolean violated = false;
-
-        String potentialCommand = message.toLowerCase();
-        for (String prefix : COMMAND_PREFIXES) {
-            if (potentialCommand.startsWith(prefix.toLowerCase() + "ac")) {
-                return;
-            }
-        }
-
-        long timeElapsed = currentTime - data.lastChatTime;
-        if (timeElapsed < MIN_CHAT_DELAY_MS) {
-            data.spamViolations++;
-            violated = true;
-            logToFile(player.getName(), "CHECK:Spam VIO=" + data.spamViolations + " (Rate Limit)");
-            event.setCancelled(true);
-        }
-
-        if (!violated && message.equalsIgnoreCase(data.lastMessage) && timeElapsed < 5000) { 
-             data.spamViolations++;
-             violated = true;
-             logToFile(player.getName(), "CHECK:Spam VIO=" + data.spamViolations + " (Repetitive)");
-             event.setCancelled(true);
-        }
-
-        if (violated) {
-            if (data.spamViolations >= 2) {
-                String rateLimitMsg = "Hold up! Wait " + String.format("%.1f", (MIN_CHAT_DELAY_MS - timeElapsed) / 1000.0) + "s before chatting again!";
-                String repeatMsg = "Please try to avoid repeating the exact same message quickly!";
-                String warningMessage = data.spamViolations > 2 ? repeatMsg : rateLimitMsg;
-                player.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! (" + data.spamViolations + "/" + spamViolationLimit + ") " + warningMessage);
-            }
-        }
-
-        if (data.spamViolations > spamViolationLimit) {
-             punishPlayer(player, "Chat Spam", data.spamViolations);
-             data.spamViolations = 0; 
-        } else if (!violated) {
-            data.lastChatTime = currentTime;
-            data.lastMessage = message;
-        }
-    }
-    
-    private void checkAttackSequence(Player player, PlayerData data) {
-         if (!checkCombatEnabled) return;
-         if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return; 
-         
-         if (data.lastDamageTime > 0) {
-            long timeSinceDamage = System.currentTimeMillis() - data.lastDamageTime;
-            if (timeSinceDamage > MAX_SWING_DELAY_MS) {
-                data.sequenceViolations++;
-                logToFile(player.getName(), "CHECK:Sequence VIO=" + data.sequenceViolations + " Delay=" + timeSinceDamage + "ms");
-                if (data.sequenceViolations > sequenceViolationLimit) {
-                    punishPlayer(player, "Illegal Attack Sequence", data.sequenceViolations);
-                } else {
-                    player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Warning: Suspicious attack sequence detected. (Swing check failed)");
-                }
-            }
-            data.lastDamageTime = 0; 
-        }
-    }
-    
-    private void checkAttackSpeed(Player attacker, PlayerData data) {
-        if (!checkCombatEnabled) return;
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return;
-        
-        long currentTime = System.currentTimeMillis();
-        long timeSinceLastAttack = currentTime - data.lastAttackTime;
-
-        if (data.lastAttackTime > 0 && timeSinceLastAttack < MIN_ATTACK_DELAY_MS) {
-            data.attackSpeedViolations++;
-            logToFile(attacker.getName(), "CHECK:AttackSpeed VIO=" + data.attackSpeedViolations + " Delay=" + timeSinceLastAttack + "ms");
-            if (data.attackSpeedViolations > attackSpeedViolationLimit) {
-                if (currentTime - data.lastAttackSpeedViolationTime > TimeUnit.SECONDS.toMillis(5)) {
-                    punishPlayer(attacker, "Attack Speed (Autoclicker)", data.attackSpeedViolations);
-                    data.lastAttackSpeedViolationTime = currentTime;
-                }
-            } else {
-                attacker.sendMessage(AC_PREFIX + ChatColor.RED + "Warning! You're attacking too fast. (" + data.attackSpeedViolations + "/" + attackSpeedViolationLimit + ")");
-            }
-        } else if (data.attackSpeedViolations > 0 && timeSinceLastAttack > MIN_ATTACK_DELAY_MS * 2) {
-             data.attackSpeedViolations = Math.max(0, data.attackSpeedViolations - 1);
-        }
-        data.lastAttackTime = currentTime;
-    }
-
-    // ====== LIGHTWEIGHT OPTIMIZATION: NATIVE COMMAND INTERCEPTOR ======
-    @EventHandler
-    public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
-        if (!checkCombatEnabled || (currentAntiCheatMode != 1 && currentAntiCheatMode != 3)) return;
-
-        Player player = event.getPlayer();
-        PlayerData data = playerDataMap.get(player.getUniqueId());
-
-        if (data != null && data.isInCombat()) {
-            String command = event.getMessage().toLowerCase();
-            if (command.startsWith("/home") || command.startsWith("/spawn") || 
-                command.startsWith("/tpa") || command.startsWith("/tpaccept") || 
-                command.startsWith("/back") || command.startsWith("/warp")) {
-                
-                event.setCancelled(true);
-                player.sendMessage(AC_PREFIX + ChatColor.RED + "You cannot teleport while in combat!");
-                logToFile(player.getName(), "Prevented combat log command: " + command);
-            }
-        }
-    }
-
-    // ====== LIGHTWEIGHT OPTIMIZATION: INVENTORY WALK PREVENTION ======
-    @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-        Player player = (Player) event.getWhoClicked();
-
-        if (player.getGameMode().toString().contains("CREATIVE") || player.getGameMode().toString().contains("SPECTATOR")) return;
-
-        PlayerData data = playerDataMap.get(player.getUniqueId());
-        if (data != null) {
-            // Pure Vanilla Minecraft physically prevents you from sprinting with an open inventory.
-            // If they are sprinting AND clicking items, they are using a hacked client.
-            if (player.isSprinting() && !player.isFlying() && !player.isGliding()) {
-                event.setCancelled(true);
-                player.sendMessage(AC_PREFIX + ChatColor.RED + "Inventory actions while sprinting are blocked!");
-                logToFile(player.getName(), "Blocked InventoryWalk (Sprinting Hack Detected)");
-            }
-        }
-    }
-
-    @EventHandler
-    public void onPlayerRegisterChannel(PlayerRegisterChannelEvent event) {
-        if (!checkModsEnabled || currentAntiCheatMode == 0) return;
-        
-        Player player = event.getPlayer();
-        String channel = event.getChannel().toLowerCase();
-        
-        for (String banned : bannedMods) {
-            if (channel.contains(banned.toLowerCase())) {
-                getServer().getScheduler().runTask(this, () -> {
-                    String logMessage = "AUTOMATICALLY KICKED " + player.getName() + " for Banned Mod Channel: " + channel;
-                    getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + " was kicked for using a banned mod.");
-                    kickPlayer(player, "Banned Client Mod (" + banned + ")");
-                    logToFile(player.getName(), logMessage);
-                });
-                return;
-            }
-        }
-    }
-
-    @EventHandler
-    public void onPlayerJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        UUID playerId = player.getUniqueId();
-        
-        playerDataMap.put(playerId, new PlayerData());
-        logToFile(player.getName(), "Player joined (IP: " + player.getAddress().getHostString() + ")");
-
-        if (player.isOp() && isUpdateAvailable) {
-            getServer().getScheduler().runTaskLater(this, () -> {
-                player.sendMessage(AC_PREFIX + ChatColor.RED + ChatColor.BOLD + "AVA ANTICHEAT UPDATE AVAILABLE!");
-                player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Current Version: " + ChatColor.WHITE + AC_VERSION);
-                player.sendMessage(AC_PREFIX + ChatColor.YELLOW + "Latest Version: " + ChatColor.GREEN + latestVersion);
-                player.sendMessage(AC_PREFIX + ChatColor.GRAY + "Changelog:\n" + updateChangelog);
-                if (autoUpdateEnabled) {
-                     player.sendMessage(AC_PREFIX + ChatColor.GREEN + "The update has been auto-downloaded. Just restart whenever to apply.");
-                } else {
-                     player.sendMessage(AC_PREFIX + ChatColor.GRAY + "Please download the update from GitHub.");
-                }
-            }, 60L);
-        }
-
-        if (currentAntiCheatMode == 1 || currentAntiCheatMode == 3) {
-            if (combatLoggedPlayers.contains(playerId)) {
-                getServer().getScheduler().runTask(this, () -> {
-                    player.getInventory().clear(); 
-                    player.setHealth(0.0); 
-                    player.sendMessage(AC_PREFIX + ChatColor.RED + "You combat logged! Your inventory was cleared and you were killed.");
-                    logToFile(player.getName(), "Punished for Combat Logging on rejoin.");
-                    combatLoggedPlayers.remove(playerId);
-                });
-            }
-        }
-    }
-
-    @EventHandler
-    public void onPlayerMove(PlayerMoveEvent event) {
-        Player player = event.getPlayer();
-        
-        if (player.getGameMode().toString().contains("CREATIVE") || player.getGameMode().toString().contains("SPECTATOR")) return;
-        
-        PlayerData data = playerDataMap.get(player.getUniqueId());
-        if (data != null) {
-            checkSpider(event, data);
-            checkFlight(event, data);
-            checkSpeed(event, data); 
-            checkPhase(event, data);
-            
-            if (data.isRiptiding && player.isOnGround()) data.isRiptiding = false;
-            
-            if (data.isWindBursting && player.isOnGround() && (System.currentTimeMillis() - data.lastBreezeBoostTime > 1000)) {
-                data.isWindBursting = false;
-            }
-        }
-    }
-
-    @EventHandler
-    public void onGlideToggle(EntityToggleGlideEvent event) {
-        if (event.getEntity() instanceof Player) {
-            PlayerData data = playerDataMap.get(event.getEntity().getUniqueId());
-            if (data != null) {
-                data.lastGlideTime = System.currentTimeMillis();
-                data.isGliding = event.isGliding();
-                if (!event.isGliding()) {
-                    data.glideEndTime = System.currentTimeMillis();
-                }
-            }
-        }
-    }
-    
-    @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent event) {
-        ItemStack item = event.getItem();
-        if (item != null && item.getType().name().contains("TRIDENT")) {
-            if (item.containsEnchantment(Enchantment.RIPTIDE)) {
-                PlayerData data = playerDataMap.get(event.getPlayer().getUniqueId());
-                if (data != null) {
-                    data.isRiptiding = true; 
-                    data.lastVelocityTime = System.currentTimeMillis();
-                    data.flyViolations = 0;
-                    data.speedViolations = 0;
-                }
-            }
-        }
-    }
-
-    @EventHandler
-    public void onPlayerRiptide(PlayerRiptideEvent event) {
-        Player player = event.getPlayer();
-        PlayerData data = playerDataMap.get(player.getUniqueId());
-        if (data != null) {
-            data.isRiptiding = true;
-            data.flyViolations = 0; 
-            data.spiderTicks = 0;
-            data.speedViolations = 0;
-            data.lastVelocityTime = System.currentTimeMillis();
-        }
-    }
-
-    @EventHandler
-    public void onEntityDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Player) {
-            Player player = (Player) event.getEntity();
-            PlayerData data = playerDataMap.get(player.getUniqueId());
-            if (data != null) {
-                data.lastVelocityTime = System.currentTimeMillis();
-
-                if (event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION || 
-                    event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
-                    data.lastBreezeBoostTime = System.currentTimeMillis();
-                    data.isWindBursting = true;
-                    data.flyViolations = 0;
-                }
-
-                if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
-                    ItemStack item = player.getInventory().getItemInMainHand();
-                    if (item != null && item.getType().name().contains("MACE")) { 
-                        data.isWindBursting = true;
-                        data.lastVelocityTime = System.currentTimeMillis();
-                    }
-                }
-            }
-        }
-    }
-
-    @EventHandler
-    public void onProjectileHit(ProjectileHitEvent event) {
-        Projectile proj = event.getEntity();
-
-        if (proj.getType().name().contains("WIND_CHARGE") || proj.getType().name().contains("BREEZE")) {
-            Location hitLoc = proj.getLocation();
-
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                // LIGHTWEIGHT OPTIMIZATION: Swapped .distance() for .distanceSquared() to avoid CPU heavy Math.sqrt() calculations
-                // 4.5 blocks squared is 20.25
-                if (p.getWorld().equals(hitLoc.getWorld()) && p.getLocation().distanceSquared(hitLoc) < 20.25) {
-                    PlayerData data = playerDataMap.get(p.getUniqueId());
-                    if (data != null) {
-                        data.lastBreezeBoostTime = System.currentTimeMillis();
-                        data.lastVelocityTime = System.currentTimeMillis();
-                        data.isWindBursting = true;
-                        data.flyViolations = 0; 
-                    }
-                }
-            }
-        }
-    }
-
-    @EventHandler
-    public void onPlayerVelocity(org.bukkit.event.player.PlayerVelocityEvent event) {
-        PlayerData data = playerDataMap.get(event.getPlayer().getUniqueId());
-        if (data != null) {
-            data.lastVelocityTime = System.currentTimeMillis();
-            data.flyViolations = 0;
-        }
-    }
-
-    @EventHandler
-    public void onPlayerChat(AsyncPlayerChatEvent event) {
-        PlayerData data = playerDataMap.get(event.getPlayer().getUniqueId());
-        if (data != null) {
-            checkSpam(event, data); 
-        }
-    }
-    
-    @EventHandler
-    public void onPlayerAnimate(PlayerAnimationEvent event) {
-        if (!checkCombatEnabled) return;
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return;
-        
-        if (event.getAnimationType() != PlayerAnimationType.ARM_SWING) return;
-        Player player = event.getPlayer();
-        PlayerData data = playerDataMap.get(player.getUniqueId());
-        if (data == null) return;
-        
-        if (isHighMobilityItem(player)) {
-            data.lastDamageTime = 0; 
-            return;
-        }
-
-        if (data.lastDamageTime > 0) {
-            data.sequenceViolations = Math.max(0, data.sequenceViolations - 1); 
-            data.lastDamageTime = 0;
-        }
-    }
-
-    @EventHandler
-    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-        if (event.getEntity() instanceof Player) {
-            Player victim = (Player) event.getEntity();
-            PlayerData victimData = playerDataMap.get(victim.getUniqueId());
-            if (victimData != null) {
-                victimData.lastVelocityTime = System.currentTimeMillis();
-                
-                String damagerType = event.getDamager().getType().name();
-                if (damagerType.contains("BREEZE") || damagerType.contains("WIND_CHARGE")) {
-                    victimData.lastBreezeBoostTime = System.currentTimeMillis();
-                    victimData.isWindBursting = true;
-                    victimData.flyViolations = 0; 
-                    victimData.spiderTicks = 0;
-                }
-            }
-        }
-
-        if (currentAntiCheatMode != 1 && currentAntiCheatMode != 3) return;
-        if (!checkCombatEnabled) return;
-
-        if (event.getDamager() instanceof Player) {
-            Player attacker = (Player) event.getDamager();
-            PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
-            if (attackerData != null) {
-                if (event.getEntity() == attacker) {
-                    attackerData.isRiptiding = false; 
-                    attackerData.isWindBursting = false;
-                    return; 
-                }
-                
-                if (isHighMobilityItem(attacker)) {
-                     attackerData.isWindBursting = true;
-                     attackerData.flyViolations = 0;
-                }
-                
-                if (event.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
-                    checkAttackSpeed(attacker, attackerData);
-                }
-                attackerData.lastDamageTime = System.currentTimeMillis();
-                getServer().getScheduler().runTaskLater(this, () -> {
-                    checkAttackSequence(attacker, attackerData); 
-                }, 1);
-            }
-        }
-
-        if (event.getEntity() instanceof Player && event.getDamager() instanceof LivingEntity) {
-            Player victim = (Player) event.getEntity();
-            LivingEntity damager = (LivingEntity) event.getDamager(); 
-            if (damager instanceof Player) {
-                Player attacker = (Player) damager;
-                long combatEndTimestamp = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(combatTimeoutSeconds);
-                
-                PlayerData victimData = playerDataMap.get(victim.getUniqueId());
-                if (victimData != null) {
-                    victimData.combatEndTime = combatEndTimestamp;
-                    victimData.lastAttacker = attacker.getUniqueId();
-                }
-                
-                PlayerData attackerData = playerDataMap.get(attacker.getUniqueId());
-                if (attackerData != null) {
-                    attackerData.combatEndTime = combatEndTimestamp;
-                    attackerData.lastAttacker = victim.getUniqueId();
-                }
-            }
-        }
-    }
-    
-    @EventHandler
-    public void onPlayerDeath(PlayerDeathEvent event) {
-        Player player = event.getEntity();
-        PlayerData data = playerDataMap.get(player.getUniqueId());
-        
-        if (data != null) {
-            data.combatEndTime = 0; 
-            
-            if (data.combatBossBar != null) {
-                data.combatBossBar.removeAll();
-                data.combatBossBar = null;
-            }
-            
-            if (data.lastAttacker != null) {
-                PlayerData attackerData = playerDataMap.get(data.lastAttacker);
-                if (attackerData != null && attackerData.lastAttacker != null && attackerData.lastAttacker.equals(player.getUniqueId())) {
-                    attackerData.combatEndTime = 0;
-                    attackerData.lastAttacker = null;
-                    
-                    if (attackerData.combatBossBar != null) {
-                        attackerData.combatBossBar.removeAll();
-                        attackerData.combatBossBar = null;
-                    }
-                    
-                    Player attacker = Bukkit.getPlayer(data.lastAttacker);
-                    if (attacker != null && attacker.isOnline()) {
-                        String clearMsg = ChatColor.GREEN + "Combat ended (Opponent died).";
-                        if (combatTimerPosition.equalsIgnoreCase("SUBTITLE")) {
-                            attacker.sendTitle("", clearMsg, 0, 40, 10);
-                        } else if (combatTimerPosition.equalsIgnoreCase("ACTION_BAR")) {
-                            attacker.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(clearMsg));
-                        }
-                    }
-                }
-            }
-            data.lastAttacker = null;
-        }
-    }
-    
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        Player player = event.getPlayer();
-        PlayerData data = playerDataMap.get(player.getUniqueId());
-        
-        if (data != null && data.combatBossBar != null) {
-            data.combatBossBar.removeAll();
-            data.combatBossBar = null;
-        }
-
-        if (checkCombatEnabled && (currentAntiCheatMode == 1 || currentAntiCheatMode == 3)) {
-            if (data != null && data.isInCombat()) {
-                for (ItemStack item : player.getInventory().getContents()) {
-                    if (item != null && item.getType() != Material.AIR) {
-                        player.getWorld().dropItemNaturally(player.getLocation(), item);
-                    }
-                }
-                
-                player.getInventory().clear();
-                
-                combatLoggedPlayers.add(player.getUniqueId());
-                killPlayer(player, PVP_LOG_REASON);
-            }
-        }
-        playerDataMap.remove(player.getUniqueId());
-        logToFile(player.getName(), "Player quit.");
-    }
-
-    private void kickPlayer(Player player, String reason) {
+    public void kickPlayer(Player player, String reason) {
         String kickMessage = AC_PREFIX + ChatColor.RED + "You were kicked for " + reason + "!";
         player.kickPlayer(kickMessage);
         logToFile(player.getName(), "KICKED for: " + reason);
     }
-    
-    private void killPlayer(Player player, String reason) {
+
+    public void killPlayer(Player player, String reason) {
         getServer().getScheduler().runTask(this, () -> {
-            if (player.isOnline()) { 
-                player.setHealth(0.0); 
-                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + 
-                                           " combat logged and died: " + ChatColor.WHITE + reason);
+            if (player.isOnline()) {
+                player.setHealth(0.0);
+                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() +
+                        " combat logged and died: " + ChatColor.WHITE + reason);
                 logToFile(player.getName(), "KILLED for: " + reason);
             }
         });
     }
-    
-    private void punishPlayer(Player player, String cheatType, int violations) {
+
+    public void punishPlayer(Player player, String cheatType, int violations) {
         getServer().getScheduler().runTask(this, () -> {
             int limit = 0;
             if (cheatType.equalsIgnoreCase("Flight")) {
@@ -1741,15 +343,15 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
             }
 
             if (violations > limit && limit > 0) {
-                String logMessage = "AUTOMATICALLY KICKED " + player.getName() + 
-                                    " for " + cheatType + " (" + violations + "/" + limit + ")";
-                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + 
-                                           " was kicked for using " + cheatType + ChatColor.DARK_RED + ".");
+                String logMessage = "AUTOMATICALLY KICKED " + player.getName() +
+                        " for " + cheatType + " (" + violations + "/" + limit + ")";
+                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() +
+                        " was kicked for using " + cheatType + ChatColor.DARK_RED + ".");
                 kickPlayer(player, cheatType + " detected (" + violations + "/" + limit + ")");
                 logToFile(player.getName(), logMessage);
-                
-                if (playerDataMap.containsKey(player.getUniqueId())) {
-                    PlayerData data = playerDataMap.get(player.getUniqueId());
+
+                PlayerData data = playerDataMap.get(player.getUniqueId());
+                if (data != null) {
                     data.flyViolations = 0;
                     data.spiderViolations = 0;
                     data.speedViolations = 0;
@@ -1762,5 +364,139 @@ public class AvAAntiCheat extends JavaPlugin implements Listener, CommandExecuto
                 player.sendMessage(AC_PREFIX + ChatColor.RED + warningMessage);
             }
         });
+    }
+
+    public void logToFile(String source, String message) {
+        logManager.logToFile(source, message);
+    }
+
+    // ===== Accessors used by checks/, listeners/ and commands/ =====
+
+    public File getPluginFile() {
+        return super.getFile();
+    }
+
+    public String getPrefix() {
+        return AC_PREFIX;
+    }
+
+    public String getVersion() {
+        return AC_VERSION;
+    }
+
+    public String getPvpLogReason() {
+        return PVP_LOG_REASON;
+    }
+
+    public int getCurrentAntiCheatMode() {
+        return currentAntiCheatMode;
+    }
+
+    public void setCurrentAntiCheatMode(int mode) {
+        this.currentAntiCheatMode = mode;
+    }
+
+    public boolean isCheckFlightEnabled() {
+        return checkFlightEnabled;
+    }
+
+    public boolean isCheckSpeedEnabled() {
+        return checkSpeedEnabled;
+    }
+
+    public boolean isCheckSpiderEnabled() {
+        return checkSpiderEnabled;
+    }
+
+    public boolean isCheckSpamEnabled() {
+        return checkSpamEnabled;
+    }
+
+    public boolean isCheckCombatEnabled() {
+        return checkCombatEnabled;
+    }
+
+    public boolean isCheckPhaseEnabled() {
+        return checkPhaseEnabled;
+    }
+
+    public boolean isCheckModsEnabled() {
+        return checkModsEnabled;
+    }
+
+    public List<String> getBannedMods() {
+        return bannedMods;
+    }
+
+    public double getBaseSpeedLimit() {
+        return baseSpeedLimit;
+    }
+
+    public double getIceSpeedLimit() {
+        return iceSpeedLimit;
+    }
+
+    public int getSpeedViolationLimit() {
+        return speedViolationLimit;
+    }
+
+    public long getGlideGracePeriodMs() {
+        return glideGracePeriodMs;
+    }
+
+    public int getFlyViolationLimit() {
+        return flyViolationLimit;
+    }
+
+    public int getSpiderViolationLimit() {
+        return spiderViolationLimit;
+    }
+
+    public int getSpamViolationLimit() {
+        return spamViolationLimit;
+    }
+
+    public int getSequenceViolationLimit() {
+        return sequenceViolationLimit;
+    }
+
+    public int getAttackSpeedViolationLimit() {
+        return attackSpeedViolationLimit;
+    }
+
+    public long getCombatTimeoutSeconds() {
+        return combatTimeoutSeconds;
+    }
+
+    public String getCombatTimerPosition() {
+        return combatTimerPosition;
+    }
+
+    public HardwareManager getHardwareManager() {
+        return hardwareManager;
+    }
+
+    public LogManager getLogManager() {
+        return logManager;
+    }
+
+    public UpdateManager getUpdateManager() {
+        return updateManager;
+    }
+
+    public PlayerData getPlayerData(UUID uuid) {
+        return playerDataMap.get(uuid);
+    }
+
+    public void putPlayerData(UUID uuid, PlayerData data) {
+        playerDataMap.put(uuid, data);
+    }
+
+    public void removePlayerData(UUID uuid) {
+        playerDataMap.remove(uuid);
+    }
+
+    public Set<UUID> getCombatLoggedPlayers() {
+        return combatLoggedPlayers;
     }
 }
