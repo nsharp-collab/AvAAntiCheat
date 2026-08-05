@@ -42,6 +42,7 @@ public class ChatCheck {
     public void checkSpam(AsyncPlayerChatEvent event, PlayerData data) {
         if (!plugin.isCheckSpamEnabled()) return;
         if (plugin.getCurrentAntiCheatMode() != 1 && plugin.getCurrentAntiCheatMode() != 4) return;
+        if (plugin.shouldBypassChecks(data)) return;
 
         Player player = event.getPlayer();
         String message = event.getMessage().trim();

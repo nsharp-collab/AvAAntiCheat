@@ -29,6 +29,7 @@ enabled-checks:
   chat-spam: true
   combat: true
   mod-detector: true
+  dupe: true
 
 # --- Mod Detector Settings ---
 # The Mod Detector listens to the background "handshake" channels clients send to the server.
@@ -68,3 +69,4 @@ kick-limits:
   chat-spam: 5
   sequence: 5
   attack-speed: 5
+  dupe: 1

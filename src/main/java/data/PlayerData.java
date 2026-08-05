@@ -33,6 +33,7 @@ public class PlayerData {
     public int spiderTicks = 0;
     public int speedViolations = 0;
     public int spamViolations = 0;
+    public int dupeViolations = 0;
 
     public long lastChatTime = 0;
     public String lastMessage = "";
@@ -56,6 +57,8 @@ public class PlayerData {
 
     public long lastBreezeBoostTime = 0;
     public long lastVelocityTime = 0;
+    public long lastCombatActivityTime = 0;
+    public boolean bypassAllChecks = false;
 
     public long lastMoveTime = System.currentTimeMillis();
     public double lastDeltaY = 0.0;

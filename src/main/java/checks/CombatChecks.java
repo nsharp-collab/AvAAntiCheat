@@ -41,6 +41,7 @@ public class CombatChecks {
     public void checkAttackSequence(Player player, PlayerData data) {
         if (!plugin.isCheckCombatEnabled()) return;
         if (plugin.getCurrentAntiCheatMode() != 1 && plugin.getCurrentAntiCheatMode() != 3) return;
+        if (plugin.shouldBypassChecks(data)) return;
 
         if (data.lastDamageTime > 0) {
             long timeSinceDamage = System.currentTimeMillis() - data.lastDamageTime;
@@ -60,6 +61,7 @@ public class CombatChecks {
     public void checkAttackSpeed(Player attacker, PlayerData data) {
         if (!plugin.isCheckCombatEnabled()) return;
         if (plugin.getCurrentAntiCheatMode() != 1 && plugin.getCurrentAntiCheatMode() != 3) return;
+        if (plugin.shouldBypassChecks(data)) return;
 
         long currentTime = System.currentTimeMillis();
         long timeSinceLastAttack = currentTime - data.lastAttackTime;

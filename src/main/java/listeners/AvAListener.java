@@ -19,8 +19,10 @@ package com.nolan.ava.listeners;
 import com.nolan.ava.AvAAntiCheat;
 import com.nolan.ava.checks.ChatCheck;
 import com.nolan.ava.checks.CombatChecks;
+import com.nolan.ava.checks.DupeCheck;
 import com.nolan.ava.checks.MovementChecks;
 import com.nolan.ava.data.PlayerData;
+import com.nolan.ava.util.SeeU;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.ChatColor;
@@ -36,6 +38,7 @@ import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
@@ -65,12 +68,14 @@ public class AvAListener implements Listener, PluginMessageListener {
     private final MovementChecks movementChecks;
     private final CombatChecks combatChecks;
     private final ChatCheck chatCheck;
+    private final DupeCheck dupeCheck;
 
     public AvAListener(AvAAntiCheat plugin, MovementChecks movementChecks, CombatChecks combatChecks, ChatCheck chatCheck) {
         this.plugin = plugin;
         this.movementChecks = movementChecks;
         this.combatChecks = combatChecks;
         this.chatCheck = chatCheck;
+        this.dupeCheck = new DupeCheck(plugin);
     }
 
     @Override
@@ -121,6 +126,8 @@ public class AvAListener implements Listener, PluginMessageListener {
 
         PlayerData data = plugin.getPlayerData(player.getUniqueId());
         if (data != null) {
+            dupeCheck.checkInventoryClick(event, data);
+
             // Pure Vanilla Minecraft physically prevents you from sprinting with an open inventory.
             // If they are sprinting AND clicking items, they are using a hacked client.
             if (player.isSprinting() && !player.isFlying() && !player.isGliding()) {
@@ -132,20 +139,48 @@ public class AvAListener implements Listener, PluginMessageListener {
     }
 
     @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player)) return;
+        Player player = (Player) event.getPlayer();
+
+        if (player.getGameMode().toString().contains("CREATIVE") || player.getGameMode().toString().contains("SPECTATOR")) return;
+
+        PlayerData data = plugin.getPlayerData(player.getUniqueId());
+        if (data != null) {
+            dupeCheck.checkInventoryClose(event, data);
+        }
+    }
+
+    @EventHandler
     public void onPlayerRegisterChannel(PlayerRegisterChannelEvent event) {
         if (!plugin.isCheckModsEnabled() || plugin.getCurrentAntiCheatMode() == 0) return;
 
         Player player = event.getPlayer();
         String channel = event.getChannel().toLowerCase();
+        PlayerData data = plugin.getPlayerData(player.getUniqueId());
+
+        if (data != null && SeeU.isSeeUFix(channel)) {
+            data.bypassAllChecks = true;
+            return;
+        }
+
+        if (data != null && data.bypassAllChecks) {
+            return;
+        }
 
         for (String banned : plugin.getBannedMods()) {
             if (channel.contains(banned.toLowerCase())) {
-                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    PlayerData laterData = plugin.getPlayerData(player.getUniqueId());
+                    if (laterData == null || laterData.bypassAllChecks) {
+                        return;
+                    }
                     String logMessage = "AUTOMATICALLY KICKED " + player.getName() + " for Banned Mod Channel: " + channel;
                     plugin.getServer().broadcastMessage(plugin.getPrefix() + ChatColor.DARK_RED + player.getName() + " was kicked for using a banned mod.");
+                    plugin.notifyOperators(player.getName() + " was kicked for banned mod channel: " + channel + ".");
                     plugin.kickPlayer(player, "Banned Client Mod (" + banned + ")");
                     plugin.logToFile(player.getName(), logMessage);
-                });
+                }, 4L);
                 return;
             }
         }
@@ -256,11 +291,13 @@ public class AvAListener implements Listener, PluginMessageListener {
             Player player = (Player) event.getEntity();
             PlayerData data = plugin.getPlayerData(player.getUniqueId());
             if (data != null) {
-                data.lastVelocityTime = System.currentTimeMillis();
+                long now = System.currentTimeMillis();
+                data.lastVelocityTime = now;
+                data.lastCombatActivityTime = now;
 
                 if (event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION ||
                         event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
-                    data.lastBreezeBoostTime = System.currentTimeMillis();
+                    data.lastBreezeBoostTime = now;
                     data.isWindBursting = true;
                     data.flyViolations = 0;
                 }
@@ -269,7 +306,7 @@ public class AvAListener implements Listener, PluginMessageListener {
                     ItemStack item = player.getInventory().getItemInMainHand();
                     if (item != null && item.getType().name().contains("MACE")) {
                         data.isWindBursting = true;
-                        data.lastVelocityTime = System.currentTimeMillis();
+                        data.lastVelocityTime = now;
                     }
                 }
             }
@@ -360,6 +397,9 @@ public class AvAListener implements Listener, PluginMessageListener {
             Player attacker = (Player) event.getDamager();
             PlayerData attackerData = plugin.getPlayerData(attacker.getUniqueId());
             if (attackerData != null) {
+                long now = System.currentTimeMillis();
+                attackerData.lastCombatActivityTime = now;
+
                 if (event.getEntity() == attacker) {
                     attackerData.isRiptiding = false;
                     attackerData.isWindBursting = false;
@@ -374,7 +414,7 @@ public class AvAListener implements Listener, PluginMessageListener {
                 if (event.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
                     combatChecks.checkAttackSpeed(attacker, attackerData);
                 }
-                attackerData.lastDamageTime = System.currentTimeMillis();
+                attackerData.lastDamageTime = now;
                 plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                     combatChecks.checkAttackSequence(attacker, attackerData);
                 }, 1);
@@ -386,18 +426,21 @@ public class AvAListener implements Listener, PluginMessageListener {
             LivingEntity damager = (LivingEntity) event.getDamager();
             if (damager instanceof Player) {
                 Player attacker = (Player) damager;
-                long combatEndTimestamp = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(plugin.getCombatTimeoutSeconds());
+                long now = System.currentTimeMillis();
+                long combatEndTimestamp = now + TimeUnit.SECONDS.toMillis(plugin.getCombatTimeoutSeconds());
 
                 PlayerData victimData = plugin.getPlayerData(victim.getUniqueId());
                 if (victimData != null) {
                     victimData.combatEndTime = combatEndTimestamp;
                     victimData.lastAttacker = attacker.getUniqueId();
+                    victimData.lastCombatActivityTime = now;
                 }
 
                 PlayerData attackerData = plugin.getPlayerData(attacker.getUniqueId());
                 if (attackerData != null) {
                     attackerData.combatEndTime = combatEndTimestamp;
                     attackerData.lastAttacker = victim.getUniqueId();
+                    attackerData.lastCombatActivityTime = now;
                 }
             }
         }

@@ -40,6 +40,7 @@ import org.bukkit.util.Vector;
 public class MovementChecks {
 
     private static final double MAX_FALL_DISTANCE = 0.5;
+    private static final long COMBAT_MOVE_GRACE_MS = 600;
 
     private final AvAAntiCheat plugin;
 
@@ -50,6 +51,8 @@ public class MovementChecks {
     public void checkSpider(PlayerMoveEvent event, PlayerData data) {
         if (!plugin.isCheckSpiderEnabled()) return;
         if (plugin.getCurrentAntiCheatMode() != 1 && plugin.getCurrentAntiCheatMode() != 2) return;
+        if (plugin.shouldBypassChecks(data)) return;
+        if (System.currentTimeMillis() - data.lastCombatActivityTime < COMBAT_MOVE_GRACE_MS) return;
 
         Player player = event.getPlayer();
         if (player.getAllowFlight() || player.isGliding() || player.isSwimming() || BlockUtils.isInLiquid(player)) {
@@ -91,6 +94,8 @@ public class MovementChecks {
     public void checkFlight(PlayerMoveEvent event, PlayerData data) {
         if (!plugin.isCheckFlightEnabled()) return;
         if (plugin.getCurrentAntiCheatMode() != 1 && plugin.getCurrentAntiCheatMode() != 2) return;
+        if (plugin.shouldBypassChecks(data)) return;
+        if (System.currentTimeMillis() - data.lastCombatActivityTime < COMBAT_MOVE_GRACE_MS) return;
 
         Player player = event.getPlayer();
         Location from = event.getFrom();
@@ -171,6 +176,8 @@ public class MovementChecks {
     public void checkSpeed(PlayerMoveEvent event, PlayerData data) {
         if (!plugin.isCheckSpeedEnabled()) return;
         if (plugin.getCurrentAntiCheatMode() != 1 && plugin.getCurrentAntiCheatMode() != 2) return;
+        if (plugin.shouldBypassChecks(data)) return;
+        if (System.currentTimeMillis() - data.lastCombatActivityTime < COMBAT_MOVE_GRACE_MS) return;
 
         Player player = event.getPlayer();
 
@@ -248,6 +255,8 @@ public class MovementChecks {
             speedLimit *= 1.15;
         }
 
+        speedLimit += 0.05;
+
         if (!isHighPower && horizontalDistance < (speedLimit * 0.8)) {
             return;
         }
@@ -272,6 +281,8 @@ public class MovementChecks {
     public void checkPhase(PlayerMoveEvent event, PlayerData data) {
         if (!plugin.isCheckPhaseEnabled()) return;
         if (plugin.getCurrentAntiCheatMode() != 1 && plugin.getCurrentAntiCheatMode() != 2) return;
+        if (plugin.shouldBypassChecks(data)) return;
+        if (System.currentTimeMillis() - data.lastCombatActivityTime < COMBAT_MOVE_GRACE_MS) return;
 
         Player player = event.getPlayer();
 
