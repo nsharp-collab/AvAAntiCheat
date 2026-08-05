@@ -33,6 +33,7 @@ public class PlayerData {
     public int spiderTicks = 0;
     public int speedViolations = 0;
     public int spamViolations = 0;
+    public int dupeViolations = 0;
 
     public long lastChatTime = 0;
     public String lastMessage = "";

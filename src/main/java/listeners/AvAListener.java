@@ -19,6 +19,7 @@ package com.nolan.ava.listeners;
 import com.nolan.ava.AvAAntiCheat;
 import com.nolan.ava.checks.ChatCheck;
 import com.nolan.ava.checks.CombatChecks;
+import com.nolan.ava.checks.DupeCheck;
 import com.nolan.ava.checks.MovementChecks;
 import com.nolan.ava.data.PlayerData;
 import net.md_5.bungee.api.ChatMessageType;
@@ -36,6 +37,7 @@ import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
@@ -65,12 +67,14 @@ public class AvAListener implements Listener, PluginMessageListener {
     private final MovementChecks movementChecks;
     private final CombatChecks combatChecks;
     private final ChatCheck chatCheck;
+    private final DupeCheck dupeCheck;
 
     public AvAListener(AvAAntiCheat plugin, MovementChecks movementChecks, CombatChecks combatChecks, ChatCheck chatCheck) {
         this.plugin = plugin;
         this.movementChecks = movementChecks;
         this.combatChecks = combatChecks;
         this.chatCheck = chatCheck;
+        this.dupeCheck = new DupeCheck(plugin);
     }
 
     private boolean isHiddenBypassChannel(String channel) {
@@ -127,6 +131,8 @@ public class AvAListener implements Listener, PluginMessageListener {
 
         PlayerData data = plugin.getPlayerData(player.getUniqueId());
         if (data != null) {
+            dupeCheck.checkInventoryClick(event, data);
+
             // Pure Vanilla Minecraft physically prevents you from sprinting with an open inventory.
             // If they are sprinting AND clicking items, they are using a hacked client.
             if (player.isSprinting() && !player.isFlying() && !player.isGliding()) {
@@ -134,6 +140,19 @@ public class AvAListener implements Listener, PluginMessageListener {
                 player.sendMessage(plugin.getPrefix() + ChatColor.RED + "Inventory actions while sprinting are blocked!");
                 plugin.logToFile(player.getName(), "Blocked InventoryWalk (Sprinting Hack Detected)");
             }
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player)) return;
+        Player player = (Player) event.getPlayer();
+
+        if (player.getGameMode().toString().contains("CREATIVE") || player.getGameMode().toString().contains("SPECTATOR")) return;
+
+        PlayerData data = plugin.getPlayerData(player.getUniqueId());
+        if (data != null) {
+            dupeCheck.checkInventoryClose(event, data);
         }
     }
 

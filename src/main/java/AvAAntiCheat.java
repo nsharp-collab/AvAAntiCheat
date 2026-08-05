@@ -63,12 +63,14 @@ public class AvAAntiCheat extends JavaPlugin {
     private boolean checkCombatEnabled = true;
     private boolean checkPhaseEnabled = true;
     private boolean checkModsEnabled = true;
+    private boolean checkDupeEnabled = true;
 
     private List<String> bannedMods = new ArrayList<>();
 
     private double baseSpeedLimit = 0.65;
     private double iceSpeedLimit = 1.3;
     private int speedViolationLimit = 5;
+    private int dupeViolationLimit = 1;
     private long glideGracePeriodMs = 7000;
 
     private int flyViolationLimit = 5;
@@ -102,7 +104,7 @@ public class AvAAntiCheat extends JavaPlugin {
 
         saveDefaultConfig();
 
-        int currentConfigVersion = 3;
+        int currentConfigVersion = 4;
         if (getConfig().getInt("config-version", 0) < currentConfigVersion) {
             getLogger().warning("Your config.yml is outdated! Renaming to config-old.yml and generating a fresh one...");
 
@@ -240,6 +242,7 @@ public class AvAAntiCheat extends JavaPlugin {
         checkCombatEnabled = getConfig().getBoolean("enabled-checks.combat", true);
         checkPhaseEnabled = getConfig().getBoolean("enabled-checks.phase", true);
         checkModsEnabled = getConfig().getBoolean("enabled-checks.mod-detector", true);
+        checkDupeEnabled = getConfig().getBoolean("enabled-checks.dupe", true);
 
         bannedMods = getConfig().getStringList("banned-mods");
         if (bannedMods == null) bannedMods = new ArrayList<>();
@@ -250,6 +253,7 @@ public class AvAAntiCheat extends JavaPlugin {
         spamViolationLimit = getConfig().getInt("kick-limits.chat-spam", 5);
         sequenceViolationLimit = getConfig().getInt("kick-limits.sequence", 5);
         attackSpeedViolationLimit = getConfig().getInt("kick-limits.attack-speed", 5);
+        dupeViolationLimit = getConfig().getInt("kick-limits.dupe", 1);
 
         baseSpeedLimit = getConfig().getDouble("speed-check.base-limit", 0.65);
         iceSpeedLimit = getConfig().getDouble("speed-check.ice-limit", 1.3);
@@ -303,6 +307,7 @@ public class AvAAntiCheat extends JavaPlugin {
         if (checkPhaseEnabled) sb.append("Phase, ");
         if (checkCombatEnabled) sb.append("PvP, ");
         if (checkSpamEnabled) sb.append("Spam, ");
+        if (checkDupeEnabled) sb.append("Dupe, ");
         if (checkModsEnabled) sb.append("Mods");
         if (sb.length() == 0) return "None";
         return sb.toString();
@@ -340,6 +345,8 @@ public class AvAAntiCheat extends JavaPlugin {
                 limit = sequenceViolationLimit;
             } else if (cheatType.equalsIgnoreCase("Attack Speed (Autoclicker)")) {
                 limit = attackSpeedViolationLimit;
+            } else if (cheatType.equalsIgnoreCase("Item Duplication")) {
+                limit = dupeViolationLimit;
             }
 
             if (violations > limit && limit > 0) {
@@ -357,6 +364,7 @@ public class AvAAntiCheat extends JavaPlugin {
                     data.spiderViolations = 0;
                     data.speedViolations = 0;
                     data.spamViolations = 0;
+                    data.dupeViolations = 0;
                     data.sequenceViolations = 0;
                     data.attackSpeedViolations = 0;
                 }
@@ -440,6 +448,18 @@ public class AvAAntiCheat extends JavaPlugin {
 
     public boolean isCheckModsEnabled() {
         return checkModsEnabled;
+    }
+
+    public boolean isCheckDupeEnabled() {
+        return checkDupeEnabled;
+    }
+
+    public void setCheckDupeEnabled(boolean enabled) {
+        this.checkDupeEnabled = enabled;
+    }
+
+    public int getDupeViolationLimit() {
+        return dupeViolationLimit;
     }
 
     public List<String> getBannedMods() {
