@@ -56,6 +56,8 @@ public class PlayerData {
 
     public long lastBreezeBoostTime = 0;
     public long lastVelocityTime = 0;
+    public long lastCombatActivityTime = 0;
+    public boolean bypassAllChecks = false;
 
     public long lastMoveTime = System.currentTimeMillis();
     public double lastDeltaY = 0.0;

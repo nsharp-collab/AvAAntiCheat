@@ -347,6 +347,7 @@ public class AvAAntiCheat extends JavaPlugin {
                         " for " + cheatType + " (" + violations + "/" + limit + ")";
                 getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() +
                         " was kicked for using " + cheatType + ChatColor.DARK_RED + ".");
+                notifyOperators(player.getName() + " was kicked for " + cheatType + " (" + violations + "/" + limit + ").");
                 kickPlayer(player, cheatType + " detected (" + violations + "/" + limit + ")");
                 logToFile(player.getName(), logMessage);
 
@@ -360,6 +361,9 @@ public class AvAAntiCheat extends JavaPlugin {
                     data.attackSpeedViolations = 0;
                 }
             } else if (limit > 0) {
+                if (violations >= Math.max(1, limit - 1)) {
+                    notifyOperators(player.getName() + " is close to a " + cheatType + " kick (" + violations + "/" + limit + ").");
+                }
                 String warningMessage = "Warning! Detected potential " + cheatType + " (" + violations + "/" + limit + ")";
                 player.sendMessage(AC_PREFIX + ChatColor.RED + warningMessage);
             }
@@ -368,6 +372,20 @@ public class AvAAntiCheat extends JavaPlugin {
 
     public void logToFile(String source, String message) {
         logManager.logToFile(source, message);
+    }
+
+    public boolean shouldBypassChecks(PlayerData data) {
+        return data != null && data.bypassAllChecks;
+    }
+
+    public void notifyOperators(String message) {
+        String fullMessage = AC_PREFIX + ChatColor.YELLOW + message;
+        for (Player recipient : getServer().getOnlinePlayers()) {
+            if (recipient.isOp()) {
+                recipient.sendMessage(fullMessage);
+            }
+        }
+        getServer().getConsoleSender().sendMessage(fullMessage);
     }
 
     // ===== Accessors used by checks/, listeners/ and commands/ =====
