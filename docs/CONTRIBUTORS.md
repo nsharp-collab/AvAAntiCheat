@@ -15,7 +15,7 @@ These are the people responsible for the core maintenance and direction of the p
 
 Special thanks to everyone who has submitted Pull Requests, fixed bugs, and added new features.
 
-* No one right now :(
+* [@anomalytty-coder](https://github.com/anomalytty-coder)
 
 ## 📝 Documentation & Design
 
@@ -28,10 +28,8 @@ Contribution isn't just about code! We deeply value those who help improve our d
 Thanks to the following people for reporting bugs and helping us test release candidates:
 
 * [@nsharp-collab](https://github.com/nsharp-collab)
-* Jared (no github account)
-* Remi (agin no github account)
 
-## 🤝 How to Contribute
+## How to Contribute
 
 We welcome contributions from everyone. If you would like to help:
 
