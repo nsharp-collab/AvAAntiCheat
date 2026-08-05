@@ -1,6 +1,7 @@
 /workspaces/AvAAntiCheat/src/main/java/AvAAntiCheat.java
 /workspaces/AvAAntiCheat/src/main/java/checks/ChatCheck.java
 /workspaces/AvAAntiCheat/src/main/java/checks/CombatChecks.java
+/workspaces/AvAAntiCheat/src/main/java/checks/DupeCheck.java
 /workspaces/AvAAntiCheat/src/main/java/checks/MovementChecks.java
 /workspaces/AvAAntiCheat/src/main/java/commands/ACCommandExecutor.java
 /workspaces/AvAAntiCheat/src/main/java/data/PlayerData.java
@@ -8,5 +9,6 @@
 /workspaces/AvAAntiCheat/src/main/java/util/BlockUtils.java
 /workspaces/AvAAntiCheat/src/main/java/util/HardwareManager.java
 /workspaces/AvAAntiCheat/src/main/java/util/LogManager.java
+/workspaces/AvAAntiCheat/src/main/java/util/SeeU.java
 /workspaces/AvAAntiCheat/src/main/java/util/PingUtils.java
 /workspaces/AvAAntiCheat/src/main/java/util/UpdateManager.java
