@@ -62,6 +62,15 @@ public class PlayerData {
 
     public long lastMoveTime = System.currentTimeMillis();
     public double lastDeltaY = 0.0;
+    public double lastHorizontalDistance = 0.0;
+    public double averageHorizontalSpeed = 0.0;
+    public double horizontalSpeedVariance = 0.0;
+    public double averageVerticalDelta = 0.0;
+    public int airborneTicks = 0;
+
+    public double attackIntervalAverage = 0.0;
+    public double attackIntervalVariance = 0.0;
+    public int attackSpeedSuspicion = 0;
     public boolean wasOnGround = true;
 
     public boolean isInCombat() {

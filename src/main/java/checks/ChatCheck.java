@@ -56,18 +56,22 @@ public class ChatCheck {
             }
         }
 
+        long spamMultiplier = Math.max(1, Math.min(8, plugin.getSpamSeverity()));
+        long minDelay = (long) (MIN_CHAT_DELAY_MS * (1.0 + (5 - spamMultiplier) * 0.08));
+        long repeatWindow = 5000 + (5 - spamMultiplier) * 500;
+
         long timeElapsed = currentTime - data.lastChatTime;
-        if (timeElapsed < MIN_CHAT_DELAY_MS) {
+        if (timeElapsed < minDelay) {
             data.spamViolations++;
             violated = true;
-            plugin.logToFile(player.getName(), "CHECK:Spam VIO=" + data.spamViolations + " (Rate Limit)");
+            plugin.logToFile(player.getName(), "CHECK:Spam VIO=" + data.spamViolations + " (Rate Limit) Delay=" + minDelay);
             event.setCancelled(true);
         }
 
-        if (!violated && message.equalsIgnoreCase(data.lastMessage) && timeElapsed < 5000) {
+        if (!violated && message.equalsIgnoreCase(data.lastMessage) && timeElapsed < repeatWindow) {
             data.spamViolations++;
             violated = true;
-            plugin.logToFile(player.getName(), "CHECK:Spam VIO=" + data.spamViolations + " (Repetitive)");
+            plugin.logToFile(player.getName(), "CHECK:Spam VIO=" + data.spamViolations + " (Repetitive) Window=" + repeatWindow);
             event.setCancelled(true);
         }
 

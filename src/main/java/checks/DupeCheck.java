@@ -46,6 +46,10 @@ public class DupeCheck {
         data.dupeViolations++;
         plugin.logToFile(player.getName(), "Suspicious dupe-related inventory drop: " + cursor.getType() + " x" + cursor.getAmount());
         player.sendMessage(plugin.getPrefix() + ChatColor.RED + "Item dupe attempts are monitored. Close your inventory cleanly.");
+        if (plugin.getDupeSeverity() <= 2 && data.dupeViolations < 2) {
+            plugin.logToFile(player.getName(), "Dupe detection lowered severity: warning only.");
+            return;
+        }
         plugin.punishPlayer(player, "Item Duplication", data.dupeViolations);
     }
 
@@ -64,6 +68,15 @@ public class DupeCheck {
 
         data.dupeViolations++;
         plugin.logToFile(player.getName(), "Inventory closed with cursor item: " + cursor.getType() + " x" + cursor.getAmount());
+
+        if (plugin.getDupeSeverity() <= 2 && data.dupeViolations < 2) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline()) return;
+                player.updateInventory();
+                plugin.logToFile(player.getName(), "Dupe detection lowered severity: inventory warning only.");
+            }, 2L);
+            return;
+        }
 
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
