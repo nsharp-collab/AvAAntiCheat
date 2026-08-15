@@ -35,22 +35,8 @@ public class DupeCheck {
             return;
         }
 
-        ItemStack cursor = event.getCursor();
-        if (cursor == null || cursor.getType() == Material.AIR) return;
-
-        if (cursor.getType().name().contains("SHULKER_BOX")) {
-            // shulker dupe vector
-            return;
-        }
-
-        data.dupeViolations++;
-        plugin.logToFile(player.getName(), "Suspicious dupe-related inventory drop: " + cursor.getType() + " x" + cursor.getAmount());
-        player.sendMessage(plugin.getPrefix() + ChatColor.RED + "Item dupe attempts are monitored. Close your inventory cleanly.");
-        if (plugin.getDupeSeverity() <= 2 && data.dupeViolations < 2) {
-            plugin.logToFile(player.getName(), "Dupe detection lowered severity: warning only.");
-            return;
-        }
-        plugin.punishPlayer(player, "Item Duplication", data.dupeViolations);
+        // Normal item dropping from the cursor is not a duplication exploit.
+        // Only keep duping checks on inventory close with a remaining cursor item.
     }
 
     public void checkInventoryClose(InventoryCloseEvent event, PlayerData data) {
@@ -66,22 +52,28 @@ public class DupeCheck {
             return;
         }
 
-        data.dupeViolations++;
-        plugin.logToFile(player.getName(), "Inventory closed with cursor item: " + cursor.getType() + " x" + cursor.getAmount());
+        long now = System.currentTimeMillis();
+        boolean isRepeatSuspicion = data.dupeViolations > 0 && (now - data.lastDupeSuspicionTime) <= 20000;
+        data.lastDupeSuspicionTime = now;
 
-        if (plugin.getDupeSeverity() <= 2 && data.dupeViolations < 2) {
+        if (!isRepeatSuspicion) {
+            data.dupeViolations = 1;
+            plugin.logToFile(player.getName(), "Inventory closed with cursor item (first suspicion): " + cursor.getType() + " x" + cursor.getAmount());
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (!player.isOnline()) return;
                 player.updateInventory();
-                plugin.logToFile(player.getName(), "Dupe detection lowered severity: inventory warning only.");
+                plugin.logToFile(player.getName(), "Dupe detection warning only after cursor close.");
+                player.sendMessage(plugin.getPrefix() + ChatColor.YELLOW + "Suspicious inventory behavior detected. Please close your inventory cleanly.");
             }, 2L);
             return;
         }
 
+        data.dupeViolations++;
+        plugin.logToFile(player.getName(), "Repeated inventory cursor close suspicion: " + cursor.getType() + " x" + cursor.getAmount());
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
             player.updateInventory();
-            plugin.logToFile(player.getName(), "Forced inventory resynchronization after cursor close.");
+            plugin.logToFile(player.getName(), "Forced inventory resynchronization after repeated cursor close.");
             plugin.punishPlayer(player, "Item Duplication", data.dupeViolations);
         }, 2L);
     }

@@ -50,6 +50,7 @@ check-severity:
 # The Mod Detector listens to the background "handshake" channels clients send to the server.
 # NOTE: This only catches "honest" mods (like minimaps or world downloaders) that announce themselves.
 # Hacked clients (like Meteor or Wurst) lie to the server and say they are Vanilla, so they won't show up here!
+  # ^^ to respond to this, these mods are only hidden if the player decides to enable the "clientspoof" modules which some people either forget to do, or are too dumb to do so
 # 
 # To find a mod's channel name, have a player join with the mod installed, and type: /ac mods <player>
 # You only need to type a part of the channel name here to ban it.
@@ -59,6 +60,24 @@ banned-mods:
   - "wdl"
   - "journeymap"
   - "voxelmap"
+  - "wurst"
+  - "meteor"
+  - "impact"
+  - "future"
+  - "LD"
+  - "mapwriter"
+  - "printer"
+  - "boze"
+  - "bose"
+  - "mio"
+  - "breeze"
+  - "lambda"
+  - "liquidbounce"
+  - "salhack"
+  - "sakura"
+  - "wurstplus"
+  - "wurst7"
+  - "shoreline"
 
 # speed-check: Configure the sensitivity of the speed detection
 speed-check:
