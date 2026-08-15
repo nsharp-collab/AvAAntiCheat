@@ -56,4 +56,44 @@ public final class PingUtils {
 
         return player.getPing();
     }
+
+    public static double getServerTps() {
+        try {
+            Object server = Bukkit.getServer();
+            java.lang.reflect.Method getTpsMethod = server.getClass().getMethod("getTPS");
+            double[] tpsValues = (double[]) getTpsMethod.invoke(server);
+            if (tpsValues != null && tpsValues.length > 0) {
+                return Math.max(0.0, Math.min(20.0, tpsValues[0]));
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            Object server = Bukkit.getServer();
+            java.lang.reflect.Field recentTpsField = server.getClass().getField("recentTps");
+            double[] tpsValues = (double[]) recentTpsField.get(server);
+            if (tpsValues != null && tpsValues.length > 0) {
+                return Math.max(0.0, Math.min(20.0, tpsValues[0]));
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            Object server = Bukkit.getServer();
+            java.lang.reflect.Method getHandle = server.getClass().getMethod("getHandle");
+            Object nms = getHandle.invoke(server);
+            java.lang.reflect.Field recentTpsField = nms.getClass().getField("recentTps");
+            double[] tpsValues = (double[]) recentTpsField.get(nms);
+            if (tpsValues != null && tpsValues.length > 0) {
+                return Math.max(0.0, Math.min(20.0, tpsValues[0]));
+            }
+        } catch (Exception ignored) {
+        }
+
+        return 20.0;
+    }
+
+    public static boolean isGeyserPlayer(Player player) {
+        return isBedrock(player);
+    }
 }

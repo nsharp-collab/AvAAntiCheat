@@ -1,7 +1,7 @@
 ## AvA Anti-Cheat default configuration
 
 # config-version: Do not touch this! The plugin uses it to detect if your config file is outdated.
-config-version: 3
+config-version: 4
 
 # default-mode: plugin startup mode (0=Disabled, 1=All, 2=Flight, 3=PvP, 4=Chat Spam)
 default-mode: 1
@@ -31,10 +31,26 @@ enabled-checks:
   mod-detector: true
   dupe: true
 
+# --- Check Severity Settings ---
+# Set a sensitivity value for each check from 1 to 8.
+# 1 = only the most obvious legacy packet hacks are blocked
+# 8 = strictest mode; math-based checks become highly aggressive
+# Good default values are 5 or 6.
+check-severity:
+  flight: 5
+  speed: 5
+  spider: 5
+  phase: 5
+  chat-spam: 5
+  combat: 5
+  mod-detector: 5
+  dupe: 5
+
 # --- Mod Detector Settings ---
 # The Mod Detector listens to the background "handshake" channels clients send to the server.
 # NOTE: This only catches "honest" mods (like minimaps or world downloaders) that announce themselves.
 # Hacked clients (like Meteor or Wurst) lie to the server and say they are Vanilla, so they won't show up here!
+  # ^^ to respond to this, these mods are only hidden if the player decides to enable the "clientspoof" modules which some people either forget to do, or are too dumb to do so
 # 
 # To find a mod's channel name, have a player join with the mod installed, and type: /ac mods <player>
 # You only need to type a part of the channel name here to ban it.
@@ -44,6 +60,24 @@ banned-mods:
   - "wdl"
   - "journeymap"
   - "voxelmap"
+  - "wurst"
+  - "meteor"
+  - "impact"
+  - "future"
+  - "LD"
+  - "mapwriter"
+  - "printer"
+  - "boze"
+  - "bose"
+  - "mio"
+  - "breeze"
+  - "lambda"
+  - "liquidbounce"
+  - "salhack"
+  - "sakura"
+  - "wurstplus"
+  - "wurst7"
+  - "shoreline"
 
 # speed-check: Configure the sensitivity of the speed detection
 speed-check:

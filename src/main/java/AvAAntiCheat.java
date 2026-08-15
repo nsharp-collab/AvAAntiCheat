@@ -79,6 +79,15 @@ public class AvAAntiCheat extends JavaPlugin {
     private int sequenceViolationLimit = 5;
     private int attackSpeedViolationLimit = 5;
 
+    private int flightSeverity = 5;
+    private int speedSeverity = 5;
+    private int spiderSeverity = 5;
+    private int phaseSeverity = 5;
+    private int spamSeverity = 5;
+    private int combatSeverity = 5;
+    private int modDetectorSeverity = 5;
+    private int dupeSeverity = 5;
+
     private long combatTimeoutSeconds = 30;
     private String combatTimerPosition = "ACTION_BAR";
 
@@ -254,6 +263,15 @@ public class AvAAntiCheat extends JavaPlugin {
         sequenceViolationLimit = getConfig().getInt("kick-limits.sequence", 5);
         attackSpeedViolationLimit = getConfig().getInt("kick-limits.attack-speed", 5);
         dupeViolationLimit = getConfig().getInt("kick-limits.dupe", 1);
+
+        flightSeverity = normalizeSeverity(getConfig().getInt("check-severity.flight", 5));
+        speedSeverity = normalizeSeverity(getConfig().getInt("check-severity.speed", 5));
+        spiderSeverity = normalizeSeverity(getConfig().getInt("check-severity.spider", 5));
+        phaseSeverity = normalizeSeverity(getConfig().getInt("check-severity.phase", 5));
+        spamSeverity = normalizeSeverity(getConfig().getInt("check-severity.chat-spam", 5));
+        combatSeverity = normalizeSeverity(getConfig().getInt("check-severity.combat", 5));
+        modDetectorSeverity = normalizeSeverity(getConfig().getInt("check-severity.mod-detector", 5));
+        dupeSeverity = normalizeSeverity(getConfig().getInt("check-severity.dupe", 5));
 
         baseSpeedLimit = getConfig().getDouble("speed-check.base-limit", 0.65);
         iceSpeedLimit = getConfig().getDouble("speed-check.ice-limit", 1.3);
@@ -502,6 +520,38 @@ public class AvAAntiCheat extends JavaPlugin {
         return attackSpeedViolationLimit;
     }
 
+    public int getFlightSeverity() {
+        return flightSeverity;
+    }
+
+    public int getSpeedSeverity() {
+        return speedSeverity;
+    }
+
+    public int getSpiderSeverity() {
+        return spiderSeverity;
+    }
+
+    public int getPhaseSeverity() {
+        return phaseSeverity;
+    }
+
+    public int getSpamSeverity() {
+        return spamSeverity;
+    }
+
+    public int getCombatSeverity() {
+        return combatSeverity;
+    }
+
+    public int getModDetectorSeverity() {
+        return modDetectorSeverity;
+    }
+
+    public int getDupeSeverity() {
+        return dupeSeverity;
+    }
+
     public long getCombatTimeoutSeconds() {
         return combatTimeoutSeconds;
     }
@@ -520,6 +570,10 @@ public class AvAAntiCheat extends JavaPlugin {
 
     public UpdateManager getUpdateManager() {
         return updateManager;
+    }
+
+    public int normalizeSeverity(int severity) {
+        return Math.max(1, Math.min(8, severity));
     }
 
     public PlayerData getPlayerData(UUID uuid) {

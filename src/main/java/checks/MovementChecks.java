@@ -20,6 +20,7 @@ import com.nolan.ava.AvAAntiCheat;
 import com.nolan.ava.data.PlayerData;
 import com.nolan.ava.util.BlockUtils;
 import com.nolan.ava.util.PingUtils;
+import com.nolan.ava.util.PredictionUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
@@ -75,9 +76,10 @@ public class MovementChecks {
             Block b = player.getLocation().getBlock();
             if (!BlockUtils.isClimbable(b) && !BlockUtils.isClimbable(b.getRelative(BlockFace.DOWN))) {
                 data.spiderTicks++;
-                if (data.spiderTicks > 10) {
+                int spiderTickThreshold = Math.max(5, 10 + (5 - plugin.getSpiderSeverity()));
+                if (data.spiderTicks > spiderTickThreshold) {
                     data.spiderViolations++;
-                    plugin.logToFile(player.getName(), "CHECK:Spider VIO=" + data.spiderViolations + " Ticks=" + data.spiderTicks);
+                    plugin.logToFile(player.getName(), "CHECK:Spider VIO=" + data.spiderViolations + " Ticks=" + data.spiderTicks + " Threshold=" + spiderTickThreshold);
                     data.spiderTicks = 5;
                     if (data.spiderViolations > plugin.getSpiderViolationLimit()) {
                         plugin.punishPlayer(player, "Spider (WallClimb)", data.spiderViolations);
@@ -138,16 +140,32 @@ public class MovementChecks {
         boolean wasOnGround = data.wasOnGround;
         data.wasOnGround = player.isOnGround();
 
-        if (isHighPower) {
-            if (!player.isOnGround() && !wasOnGround && deltaY > 0) {
-                double expectedY = (data.lastDeltaY - 0.08) * 0.98;
-                int ping = PingUtils.getPlayerPing(player);
-                double pingMargin = (ping > 300) ? 0.05 : 0.0;
+        if (!player.isOnGround()) {
+            data.airborneTicks++;
+        } else {
+            data.airborneTicks = 0;
+            data.averageVerticalDelta = 0.0;
+        }
 
-                if (deltaY > (expectedY + 0.1 + pingMargin) && player.getFallDistance() < MAX_FALL_DISTANCE) {
+        double serverTps = PingUtils.getServerTps();
+
+        if (isHighPower) {
+            if (!player.isOnGround() && !wasOnGround && deltaY > 0 && data.airborneTicks > 1) {
+                double expectedY = PredictionUtils.predictAirborneVertical(data.lastDeltaY, data.averageVerticalDelta);
+                int ping = PingUtils.getPlayerPing(player);
+                double severityScale = 1.0 + (5 - plugin.getFlightSeverity()) * 0.06;
+                double pingMargin = (ping > 300) ? 0.05 : 0.0;
+                double tpsMargin = serverTps < 18.0 ? (18.0 - serverTps) * 0.015 : 0.0;
+                if (PingUtils.isGeyserPlayer(player)) {
+                    tpsMargin += 0.03;
+                }
+                double adaptiveThreshold = Math.max(expectedY + 0.11 * severityScale + pingMargin + tpsMargin,
+                        data.averageVerticalDelta + 0.12 * severityScale + tpsMargin);
+
+                if (deltaY > adaptiveThreshold && player.getFallDistance() < MAX_FALL_DISTANCE) {
                     if (data.spiderTicks > 0) return;
                     data.flyViolations++;
-                    plugin.logToFile(player.getName(), "CHECK:Flight (Physics) VIO=" + data.flyViolations + " Y=" + String.format("%.3f", deltaY) + " ExpectedY=" + String.format("%.3f", expectedY) + " Ping=" + ping + "ms");
+                    plugin.logToFile(player.getName(), "CHECK:Flight (Predictive) VIO=" + data.flyViolations + " Y=" + String.format("%.3f", deltaY) + " ExpectedY=" + String.format("%.3f", expectedY) + " Ping=" + ping + "ms TPS=" + String.format("%.2f", serverTps));
                     if (data.flyViolations > plugin.getFlyViolationLimit()) {
                         plugin.punishPlayer(player, "Flight", data.flyViolations);
                     }
@@ -157,10 +175,16 @@ public class MovementChecks {
             }
         } else {
             if (!player.isOnGround() && deltaY > 0.05 && player.getFallDistance() < MAX_FALL_DISTANCE) {
-                if (deltaY > MAX_FALL_DISTANCE) {
+                double tpsMargin = serverTps < 18.0 ? (18.0 - serverTps) * 0.02 : 0.0;
+                if (PingUtils.isGeyserPlayer(player)) {
+                    tpsMargin += 0.04;
+                }
+                double severityScale = 1.0 + (5 - plugin.getFlightSeverity()) * 0.06;
+                double adaptiveThreshold = Math.max(MAX_FALL_DISTANCE, data.averageVerticalDelta + 0.12 * severityScale + tpsMargin);
+                if (deltaY > adaptiveThreshold) {
                     if (data.spiderTicks > 0) return;
                     data.flyViolations++;
-                    plugin.logToFile(player.getName(), "CHECK:Flight VIO=" + data.flyViolations + " Y=" + String.format("%.3f", deltaY));
+                    plugin.logToFile(player.getName(), "CHECK:Flight (Predictive) VIO=" + data.flyViolations + " Y=" + String.format("%.3f", deltaY) + " TPS=" + String.format("%.2f", serverTps));
                     if (data.flyViolations > plugin.getFlyViolationLimit()) {
                         plugin.punishPlayer(player, "Flight", data.flyViolations);
                     }
@@ -170,6 +194,7 @@ public class MovementChecks {
             }
         }
 
+        data.averageVerticalDelta = PredictionUtils.exponentialMovingAverage(data.averageVerticalDelta, deltaY, 0.22);
         data.lastDeltaY = deltaY;
     }
 
@@ -235,15 +260,22 @@ public class MovementChecks {
         double ticksElapsed = timeDiff / 50.0;
 
         int ping = PingUtils.getPlayerPing(player);
+        double serverTps = PingUtils.getServerTps();
 
-        double maxLagTicks = Math.min(20.0, Math.max(5.0, (ping + 100) / 50.0));
+        double maxLagTicks = Math.max(5.0, (ping + 100) / 50.0 + (20.0 - serverTps) * 0.5);
+        if (PingUtils.isGeyserPlayer(player)) {
+            maxLagTicks += 3.0;
+        }
+        maxLagTicks = Math.min(30.0, maxLagTicks);
         ticksElapsed = Math.min(ticksElapsed, maxLagTicks);
 
         boolean isHighPower = plugin.getHardwareManager().isHighPerformance();
+        double speedSeverityOffset = (5 - plugin.getSpeedSeverity()) * 0.04;
 
         if (isHighPower) {
             speedLimit -= 0.05;
         }
+        speedLimit += speedSeverityOffset;
 
         // BUG FIX: tick-elapsed scaling used to only apply "if (isHighPower)". That meant
         // OPTIMIZED_LIGHT mode compared raw per-move distance against an un-scaled limit even
@@ -255,18 +287,32 @@ public class MovementChecks {
             speedLimit *= 1.15;
         }
 
+        double lagLimit = Math.max(0.0, (20.0 - serverTps) * 0.04);
+        lagLimit += (ping > 250) ? Math.min(0.16, (ping - 250) * 0.0007) : 0.0;
+        if (PingUtils.isGeyserPlayer(player)) {
+            lagLimit += 0.08;
+        }
+        speedLimit += lagLimit;
         speedLimit += 0.05;
 
+        double predictedHorizontal = PredictionUtils.predictGroundSpeed(data.lastHorizontalDistance, data.averageHorizontalSpeed, data.horizontalSpeedVariance);
+        double adaptiveBoost = 0.08 * (1.0 + (5 - plugin.getSpeedSeverity()) * 0.05);
+        double adaptiveLimit = Math.max(speedLimit, predictedHorizontal + adaptiveBoost);
+
         if (!isHighPower && horizontalDistance < (speedLimit * 0.8)) {
+            data.averageHorizontalSpeed = PredictionUtils.exponentialMovingAverage(data.averageHorizontalSpeed, horizontalDistance, 0.18);
+            data.horizontalSpeedVariance = PredictionUtils.updateVariance(data.horizontalSpeedVariance, data.averageHorizontalSpeed, horizontalDistance, 0.18);
+            data.lastHorizontalDistance = horizontalDistance;
             return;
         }
 
-        if (horizontalDistance > speedLimit) {
+        if (horizontalDistance > adaptiveLimit) {
             data.speedViolations++;
             plugin.logToFile(player.getName(),
-                    "CHECK:Speed VIO=" + data.speedViolations +
+                    "CHECK:Speed (Predictive) VIO=" + data.speedViolations +
                             " Dist=" + String.format("%.3f", horizontalDistance) +
                             " Limit=" + String.format("%.3f", speedLimit) +
+                            " Pred=" + String.format("%.3f", predictedHorizontal) +
                             " TicksDelta=" + String.format("%.2f", ticksElapsed) +
                             " Ping=" + ping + "ms");
 
@@ -276,6 +322,10 @@ public class MovementChecks {
         } else {
             if (data.speedViolations > 0) data.speedViolations--;
         }
+
+        data.averageHorizontalSpeed = PredictionUtils.exponentialMovingAverage(data.averageHorizontalSpeed, horizontalDistance, 0.18);
+        data.horizontalSpeedVariance = PredictionUtils.updateVariance(data.horizontalSpeedVariance, data.averageHorizontalSpeed, horizontalDistance, 0.18);
+        data.lastHorizontalDistance = horizontalDistance;
     }
 
     public void checkPhase(PlayerMoveEvent event, PlayerData data) {
@@ -318,9 +368,19 @@ public class MovementChecks {
             double dist = dir.length();
 
             int ping = PingUtils.getPlayerPing(player);
-            double rayTraceThreshold = (ping > 400) ? 0.6 : 0.4;
+            double serverTps = PingUtils.getServerTps();
+            double rayTraceThreshold = 0.4 + (5 - plugin.getPhaseSeverity()) * 0.04;
+            if (ping > 400) {
+                rayTraceThreshold += 0.2;
+            }
+            if (serverTps < 18.0) {
+                rayTraceThreshold += 0.12;
+            }
+            if (PingUtils.isGeyserPlayer(player)) {
+                rayTraceThreshold += 0.18;
+            }
 
-            if (dist > rayTraceThreshold && dist < 10.0) {
+            if (dist > rayTraceThreshold && dist < 10.0 && serverTps >= 13.0) {
                 Location traceStart = from.clone().add(0, 1.0, 0);
 
                 RayTraceResult trace = player.getWorld().rayTraceBlocks(traceStart, dir, dist, FluidCollisionMode.NEVER, true);
