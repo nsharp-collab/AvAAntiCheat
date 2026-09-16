@@ -1,10 +1,10 @@
-📝 Contributing to AvAAntiCheat
+Contributing to AvA-Anti-Cheat
 
-Thank you for your interest in contributing to AvAAntiCheat! Your effort helps keep Minecraft servers fair and fun.
+Thank you for your interest in contributing to AvA-Anti-Cheat! Your effort helps keep Minecraft servers fair and fun.
 
 By contributing, you agree that your submissions are licensed under the Apache License, Version 2.0 (AL 2.0), the same license that governs this project.
 
-🤝 How to Contribute
+How to Contribute
 
 We welcome contributions in four main areas: New Checks, Bug Fixes, Documentation, and Other Changes.
 
@@ -16,7 +16,7 @@ Goal: New checks must be robust, performant, and have an extremely low rate of f
 
 Structure: All new checks should follow the existing organizational pattern within the com.nolan.ava.check package.
 
-⚠️ Testing Requirement (Heavily Encouraged): New checks must be thoroughly tested against known cheating clients to ensure detection, and against legitimate, high-latency, or highly skilled players to ensure accuracy. If you are unable to perform extensive testing, you must leave a prominent note in the Pull Request description stating that the check is untested and requires internal validation.
+Testing Requirement (Heavily Encouraged): New checks must be thoroughly tested against known cheating clients to ensure detection, and against legitimate, high-latency, or highly skilled players to ensure accuracy. If you are unable to perform extensive testing, you must leave a prominent note in the Pull Request description stating that the check is untested and requires internal validation.
 
 Configuration: New checks should include sensible default settings and, ideally, be toggleable via the main configuration file.
 
@@ -30,7 +30,7 @@ Fixes: If you submit a fix via a Pull Request (PR), reference the related Issue 
 
 3. Documentation and Translations
 
-Improvements to the README.md, translation files, or internal code comments are always welcome.
+Improvements to the README.md or internal code comments are always welcome.
 
 4. Other Changes (Core, Config, Logging)
 
@@ -42,15 +42,15 @@ Changes to the main configuration structure or command handlers.
 
 Optimizations or refactors to the main plugin loop or core anti-cheat logic.
 
-⚙️ Contribution Workflow (Submitting Code)
+Contribution Workflow (Submitting Code)
 
-Fork the Repository: Create your own fork of the official AvAAntiCheat repository.
+Fork the Repository: Create your own fork of the official AvA-Anti-Cheat repository.
 
 Create a Branch: Create a new branch for your feature or fix (e.g., feature/fly-check-v3 or fix/pvp-logging).
 
 Make Your Changes: Write your code, following the existing style and conventions.
 
-⚠️ Adhering to the Apache License 2.0
+Adhering to the Apache License 2.0
 
 This is a critical step for all contributors to ensure legal clarity regarding patents and copyright.
 
@@ -60,10 +60,10 @@ When you create a brand-new source file:
 
 You must include the full Apache 2.0 license boilerplate header at the top of the file, replacing the placeholder values ([yyyy] and [name of copyright owner]) with your copyright information. This makes you the primary copyright holder and licensor for that file.
 
-Example for a new file in 2025:
+Example for a new file in 2026:
 ```
 /*
- * Copyright 2025 Your Name or Company Name
+ * Copyright [Year] [Your Name or Company Name or GitHub Handle]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,11 +86,11 @@ If you modify an existing file created by someone else (or the original owner, N
 Example:
 ```
 /*
- * Copyright 2025 Nolan Sharp
- * ... (rest of Nolan Sharp's license header) ...
+ * Copyright 2026 Nolan Sharp
+ * ... (rest of the license header) ...
  *
  * -------------------------------------------------------------
- * **MODIFIED by Your Name on 2025-11-20 to optimize movement checks.**
+ * MODIFIED by [Your Name or GitHub Handle] on [Date] to [Changes]
  * -------------------------------------------------------------
  */
 ```
@@ -99,7 +99,7 @@ Example:
 
 You are not required to create a NOTICE file unless your contribution incorporates code that explicitly requires external attribution (e.g., another project that requires you to list their name in a NOTICE file).
 
-🚀 Submitting Your Pull Request (PR)
+Submitting Your Pull Request (PR)
 
 Rebase: Ensure your branch is up-to-date with the main branch. Avoid merge commits if possible.
 
@@ -117,6 +117,6 @@ Credit for Contributors: All contributors will be credited! The owner (Nolan Sha
 
 Wait for Review: The repository owner (Nolan Sharp) will review your code, check for compatibility, and test it for stability before merging.
 
-Thank you again for helping to improve AvAAntiCheat!
+Thank you again for helping to improve AvA-Anti-Cheat!
 
 ~ Nolan Sharp (project maintainer)
