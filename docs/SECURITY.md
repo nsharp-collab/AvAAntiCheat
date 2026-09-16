@@ -1,4 +1,4 @@
-# Security Policy
+# Security Policy 
 
 This policy outlines the supported server versions and the proper procedure for reporting potential security vulnerabilities for our server-side Minecraft anti-cheat plugin.
 
