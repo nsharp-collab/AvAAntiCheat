@@ -58,12 +58,12 @@ This is a critical step for all contributors to ensure legal clarity regarding p
 
 When you create a brand-new source file:
 
-You must include the full Apache 2.0 license boilerplate header at the top of the file, replacing the placeholder values ([yyyy] and [name of copyright owner]) with your copyright information. This makes you the primary copyright holder and licensor for that file.
+You must include the full Apache 2.0 license boilerplate header at the top of the file, using the shared copyright name `AvA-Anti-Cheat Contributors` and replacing `[Year]` with the current year. This keeps the licensing information consistent across contributions without requiring each contributor to add separate copyright details.
 
-Example for a new file in 2026:
+Example for a new file:
 ```
 /*
- * Copyright [Year] [Your Name or Company Name or GitHub Handle]
+ * Copyright [Year] AvA-Anti-Cheat Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,21 +79,9 @@ Example for a new file in 2026:
  */
 ```
 
-2. Modification Notices (For Existing Files)
+2. Modifying Existing Files
 
-If you modify an existing file created by someone else (or the original owner, Nolan Sharp), you must add a "prominent notice" stating that you changed the file, directly below the original copyright header.
-
-Example:
-```
-/*
- * Copyright 2026 Nolan Sharp
- * ... (rest of the license header) ...
- *
- * -------------------------------------------------------------
- * MODIFIED by [Your Name or GitHub Handle] on [Date] to [Changes]
- * -------------------------------------------------------------
- */
-```
+When modifying an existing file, preserve its original copyright and license header. Per NOTICE.md, individual modification notices are not required in-file; Git commit history serves as the official modification record for this project.
 
 3. The NOTICE File
 

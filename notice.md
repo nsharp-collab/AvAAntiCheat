@@ -26,5 +26,20 @@ This project relies on and is developed using the following third-party librarie
     * Copyright (c) 2020 GeyserMC
     * The Geyser API is open-source software licensed under the MIT License. A copy of the MIT License can be found at: https://github.com/GeyserMC/Geyser/blob/master/LICENSE
 
+
+## Modifications
+
+   * This project is under active development. Contributors may modify existing
+    source files as part of ongoing improvements, bug fixes, and new features. 
+
+    * In accordance with Section 4(b) of the Apache License 2.0, this project
+    uses Git commit history (available in the public repository) as the
+    official record of file modifications, including what was changed, when,
+    and by whom. Individual modified source files are not required to carry
+    a separate per-change notice; the version-controlled history serves this
+    function.
+
+    * Contributor credit and recognition are maintained separately in
+    `AUTHORS.md`
 ---
 The contents of this Notice file are for informational purposes only and do not modify the License.
