@@ -25,7 +25,10 @@ This project relies on and is developed using the following third-party librarie
     * AvA AntiCheat dynamically hooks into the Geyser API if present on the server to provide native Bedrock support and movement leniency. AvA AntiCheat does not distribute GeyserMC code.
     * Copyright (c) 2020 GeyserMC
     * The Geyser API is open-source software licensed under the MIT License. A copy of the MIT License can be found at: https://github.com/GeyserMC/Geyser/blob/master/LICENSE
-
+* **PacketEvents (Optional Integration)**
+    * AvA AntiCheat can optionally use PacketEvents for experimental packet-level checks when the PacketEvents plugin is installed. AvA AntiCheat does not shade or distribute PacketEvents.
+    * Copyright (c) retrooper / PacketEvents contributors
+    * PacketEvents is open-source software licensed under the GPL-3.0 License. See: https://github.com/retrooper/packetevents
 
 ## Modifications
 

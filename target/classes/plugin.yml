@@ -4,16 +4,18 @@ main: com.nolan.ava.AvAAntiCheat
 api-version: 1.21
 authors: [Nolan]
 description: An anti-cheat system detecting flight, spam, and PvP logging.
+# Optional integrations: Geyser (Bedrock ping) and PacketEvents (experimental packet checks).
+softdepend: [Geyser-Spigot, packetevents, ProtocolLib, ProtocolSupport, ViaVersion, ViaBackwards, ViaRewind]
 commands:
   ac:
     description: AvA Anti-Cheat administration commands.
     usage: /ac <status|start <1-4>|stop|kick <player>|checkop <player>|reload|debug|perf <high|light|auto>|mods <player>|info <player> <true/false>|>>
     permission: ava.admin
     permission-message: You don't have permission to use the AvA Anti-Cheat commands.
-  secretdisable:
-    description: Secretly disables the anti-cheat for testing (requires OP or specific user).
-    usage: /<command>
 permissions:
   ava.admin:
     description: Allows access to all AvA Anti-Cheat administration commands.
     default: op
+  ava.bypass:
+    description: Bypass all AvA Anti-Cheat checks (trusted staff only).
+    default: false

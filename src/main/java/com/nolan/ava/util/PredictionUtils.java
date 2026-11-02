@@ -37,14 +37,15 @@ public final class PredictionUtils {
 
     public static double predictAirborneVertical(double lastDeltaY, double averageDeltaY) {
         double gravity = 0.08;
-        double drag = 0.985;
-        double expectedY = (lastDeltaY - gravity) * drag + 0.015;
+        double drag = 0.98;
+        // Vanilla-ish: (velY - gravity) * drag. Do not clamp to >= 0 so descent is predictable.
+        double expectedY = (lastDeltaY - gravity) * drag;
 
-        if (averageDeltaY > 0.0) {
-            expectedY = expectedY * 0.78 + averageDeltaY * 0.22;
+        if (averageDeltaY != 0.0) {
+            expectedY = expectedY * 0.85 + averageDeltaY * 0.15;
         }
 
-        return Math.max(0.0, expectedY);
+        return expectedY;
     }
 
     public static double predictGroundSpeed(double lastHorizontalDistance, double averageHorizontalSpeed, double variance) {

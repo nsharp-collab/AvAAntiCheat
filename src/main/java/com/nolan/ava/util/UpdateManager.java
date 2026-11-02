@@ -27,16 +27,23 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+import java.util.Locale;
 
 /**
  * Checks GitHub for a newer release, optionally auto-downloads it into the
- * server's /update folder so it applies on next restart.
+ * server's /update folder so it applies on next restart. Downloads are only
+ * installed when the local SHA-256 matches the digest published on GitHub.
  */
 public class UpdateManager {
 
     private static final String GITHUB_VERSION_URL = "https://raw.githubusercontent.com/nsharp-collab/AvAAntiCheat/refs/heads/main/version.txt";
     private static final String GITHUB_JAR_URL = "https://github.com/nsharp-collab/AvAAntiCheat/releases/latest/download/AvAAntiCheat.jar";
+    private static final String GITHUB_SHA256_URL = "https://github.com/nsharp-collab/AvAAntiCheat/releases/latest/download/AvAAntiCheat.jar.sha256";
+    private static final String GITHUB_SHA256_FALLBACK_URL = "https://raw.githubusercontent.com/nsharp-collab/AvAAntiCheat/refs/heads/main/AvAAntiCheat.jar.sha256";
     private static final String GITHUB_CHANGELOG_URL = "https://raw.githubusercontent.com/nsharp-collab/AvAAntiCheat/refs/heads/main/changelog.txt";
 
     private final AvAAntiCheat plugin;
@@ -120,8 +127,8 @@ public class UpdateManager {
 
     boolean isNewerVersion(String current, String online) {
         try {
-            String[] currentParts = current.split("\\.");
-            String[] onlineParts = online.split("\\.");
+            String[] currentParts = normalizeVersion(current).split("\\.");
+            String[] onlineParts = normalizeVersion(online).split("\\.");
             int length = Math.max(currentParts.length, onlineParts.length);
 
             for (int i = 0; i < length; i++) {
@@ -137,6 +144,21 @@ public class UpdateManager {
         return false;
     }
 
+    /**
+     * Strip non-numeric prefixes like DEV- so DEV-1.9.5 compares as 1.9.5.
+     */
+    static String normalizeVersion(String version) {
+        if (version == null) return "0";
+        String v = version.trim();
+        // Drop leading letters/hyphens until we hit a digit (handles DEV-1.9.5-SPLIT)
+        int i = 0;
+        while (i < v.length() && !Character.isDigit(v.charAt(i))) {
+            i++;
+        }
+        if (i >= v.length()) return "0";
+        return v.substring(i);
+    }
+
     private int leadingNumber(String segment) {
         int end = 0;
         while (end < segment.length() && Character.isDigit(segment.charAt(end))) {
@@ -149,25 +171,85 @@ public class UpdateManager {
     private void downloadUpdate() {
         plugin.getLogger().info("Automatically pulling down the latest update...");
 
+        String expectedSha;
+        try {
+            expectedSha = fetchExpectedSha256();
+        } catch (IOException e) {
+            plugin.getLogger().severe("Auto-update aborted: could not fetch SHA-256 from GitHub (" + e.getMessage() + ").");
+            return;
+        }
+        if (expectedSha == null || expectedSha.isBlank()) {
+            plugin.getLogger().severe("Auto-update aborted: empty SHA-256 from GitHub.");
+            return;
+        }
+
         File updateFolder = Bukkit.getServer().getUpdateFolderFile();
         if (!updateFolder.exists()) {
             updateFolder.mkdirs();
         }
 
-        File targetFile = new File(updateFolder, plugin.getPluginFile().getName());
+        Path tempFile = null;
+        try {
+            tempFile = Files.createTempFile("AvAAntiCheat-update-", ".jar");
+            try (InputStream in = new URL(GITHUB_JAR_URL).openStream()) {
+                Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
+            }
 
-        try (InputStream in = new URL(GITHUB_JAR_URL).openStream()) {
-            Files.copy(in, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            String actualSha = sha256Hex(tempFile);
+            if (!expectedSha.equalsIgnoreCase(actualSha)) {
+                plugin.getLogger().severe("Auto-update aborted: SHA-256 mismatch!");
+                plugin.getLogger().severe("  Expected: " + expectedSha);
+                plugin.getLogger().severe("  Actual:   " + actualSha);
+                Files.deleteIfExists(tempFile);
+                return;
+            }
 
-            plugin.getLogger().info("Update downloaded to " + targetFile.getPath());
+            File targetFile = new File(updateFolder, plugin.getPluginFile().getName());
+            Files.copy(tempFile, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            Files.deleteIfExists(tempFile);
+
+            plugin.getLogger().info("Update downloaded and checksum verified: " + targetFile.getPath());
             plugin.getLogger().info("The new version will automatically apply on the next server restart.");
 
             Bukkit.getScheduler().runTask(plugin, () -> Bukkit.broadcast(
                     acPrefix + ChatColor.GREEN + "Plugin update " + latestVersion + " is ready. Restart the server to apply.",
                     "ava.admin"));
 
-        } catch (IOException e) {
-            plugin.getLogger().severe("Man, auto-download failed: " + e.getMessage());
+        } catch (Exception e) {
+            plugin.getLogger().severe("Auto-download failed: " + e.getMessage());
+            if (tempFile != null) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ignored) {
+                }
+            }
         }
+    }
+
+    private String fetchExpectedSha256() throws IOException {
+        IOException last = null;
+        for (String url : new String[]{GITHUB_SHA256_URL, GITHUB_SHA256_FALLBACK_URL}) {
+            try (InputStream in = new URL(url).openStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
+                String line = reader.readLine();
+                if (line == null) continue;
+                // Accept either bare hex or "hex  filename" (sha256sum format)
+                String token = line.trim().split("\\s+")[0].toLowerCase(Locale.ROOT);
+                if (token.matches("[0-9a-f]{64}")) {
+                    return token;
+                }
+            } catch (IOException e) {
+                last = e;
+            }
+        }
+        if (last != null) throw last;
+        throw new IOException("No usable SHA-256 digest found");
+    }
+
+    static String sha256Hex(Path file) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] bytes = Files.readAllBytes(file);
+        byte[] hash = digest.digest(bytes);
+        return HexFormat.of().formatHex(hash);
     }
 }

@@ -5,13 +5,14 @@
 
     <groupId>com.nolan</groupId>
     <artifactId>AvAAntiCheat</artifactId>
-    <version>1.9.5-DEV-Split</version>
+    <version>1.9.5-DEV-PACKET</version>
     <packaging>jar</packaging>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <packetevents.version>2.14.0</packetevents.version>
     </properties>
 
     <repositories>
@@ -27,6 +28,14 @@
             <id>opencollab-repo</id>
             <url>https://repo.opencollab.dev/main/</url>
         </repository>
+        <repository>
+            <id>codemc-releases</id>
+            <url>https://repo.codemc.io/repository/maven-releases/</url>
+        </repository>
+        <repository>
+            <id>codemc-snapshots</id>
+            <url>https://repo.codemc.io/repository/maven-snapshots/</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -41,10 +50,18 @@
             <artifactId>bstats-bukkit</artifactId>
             <version>3.0.2</version>
         </dependency>
+        <!-- Geyser stays provided (softdepend): only used when the Geyser plugin is installed. -->
         <dependency>
             <groupId>org.geysermc.geyser</groupId>
             <artifactId>api</artifactId>
             <version>2.4.2-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- PacketEvents stays provided (softdepend): optional experimental packet hooks. -->
+        <dependency>
+            <groupId>com.github.retrooper</groupId>
+            <artifactId>packetevents-spigot</artifactId>
+            <version>${packetevents.version}</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
@@ -55,7 +72,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.1</version>
+                <version>3.6.1</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -63,6 +80,8 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+                            <minimizeJar>false</minimizeJar>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
                             <relocations>
                                 <relocation>
                                     <pattern>org.bstats</pattern>

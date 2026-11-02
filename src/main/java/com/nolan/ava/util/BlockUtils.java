@@ -51,13 +51,21 @@ public final class BlockUtils {
     }
 
     public static boolean isIce(Block block) {
+        if (block == null) return false;
         Material type = block.getType();
-        return type == Material.ICE || type == Material.PACKED_ICE || type == Material.BLUE_ICE;
+        return type == Material.ICE
+                || type == Material.PACKED_ICE
+                || type == Material.BLUE_ICE
+                || type == Material.FROSTED_ICE;
     }
 
     public static boolean isSoulBlock(Block block) {
         Material type = block.getType();
         return type == Material.SOUL_SAND || type == Material.SOUL_SOIL;
+    }
+
+    public static boolean isHoney(Block block) {
+        return block != null && block.getType() == Material.HONEY_BLOCK;
     }
 
     public static boolean isPartialHeightBlock(Block block) {

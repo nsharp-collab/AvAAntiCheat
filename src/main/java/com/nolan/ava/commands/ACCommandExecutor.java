@@ -78,7 +78,7 @@ public class ACCommandExecutor implements CommandExecutor {
                     }
                     plugin.setCurrentAntiCheatMode(mode);
                     String modeDesc = plugin.getModeDescription(mode);
-                    plugin.getServer().broadcastMessage(prefix + ChatColor.GREEN + ChatColor.BOLD + "AvA anti-cheat ACTIVE (Mode " + mode + ": " + modeDesc + ")");
+                    plugin.notifyOperators("AvA anti-cheat ACTIVE (Mode " + mode + ": " + modeDesc + ")");
                     sender.sendMessage(prefix + ChatColor.GREEN + "Anti-Cheat Mode " + mode + " activated.");
                     plugin.logToFile(senderName, "EXECUTED AC Mode " + mode + " (" + modeDesc + ")");
                 } catch (NumberFormatException e) {
@@ -89,7 +89,8 @@ public class ACCommandExecutor implements CommandExecutor {
 
             if (subCommand.equals("stop")) {
                 plugin.setCurrentAntiCheatMode(0);
-                plugin.getServer().broadcastMessage(prefix + ChatColor.YELLOW + "Anti-Cheat has been temporarily DISABLED.");
+                plugin.notifyOperators("Anti-Cheat has been temporarily DISABLED (Mode 0).");
+                sender.sendMessage(prefix + ChatColor.YELLOW + "Anti-Cheat disabled (admins notified).");
                 plugin.logToFile(senderName, "EXECUTED AC Mode 0 (Disabled)");
                 return true;
             }
@@ -255,6 +256,7 @@ public class ACCommandExecutor implements CommandExecutor {
             if (subCommand.equals("reload")) {
                 plugin.reloadConfig();
                 plugin.loadConfigValues();
+                plugin.refreshPacketChecks();
 
                 sender.sendMessage(prefix + ChatColor.GREEN + "Configurations reloaded.");
                 plugin.logToFile(senderName, "EXECUTED AC reload.");
@@ -263,15 +265,6 @@ public class ACCommandExecutor implements CommandExecutor {
 
             sender.sendMessage(prefix + ChatColor.RED + "Unknown command. Try /ac for help.");
             return true;
-        } else if (command.getName().equalsIgnoreCase("secretdisable")) {
-            if (!(sender instanceof Player)) return true;
-            Player player = (Player) sender;
-            if (player.isOp()) {
-                plugin.setCurrentAntiCheatMode(0);
-                player.sendMessage(prefix + ChatColor.YELLOW + "Anti-Cheat is now secretly DISABLED (Mode 0).");
-                plugin.logToFile(player.getName(), "EXECUTED secretdisable (Mode 0)");
-                return true;
-            }
         }
         return false;
     }

@@ -20,12 +20,14 @@ import com.nolan.ava.AvAAntiCheat;
 import com.nolan.ava.checks.ChatCheck;
 import com.nolan.ava.checks.CombatChecks;
 import com.nolan.ava.checks.DupeCheck;
+import com.nolan.ava.checks.MoveSimulator;
 import com.nolan.ava.checks.MovementChecks;
+import com.nolan.ava.checks.PacketChecks;
 import com.nolan.ava.data.PlayerData;
-import com.nolan.ava.util.SeeU;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -37,24 +39,24 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRegisterChannelEvent;
 import org.bukkit.event.player.PlayerRiptideEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.messaging.PluginMessageListener;
-import org.bukkit.Location;
+import org.bukkit.util.Vector;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -69,22 +71,30 @@ public class AvAListener implements Listener, PluginMessageListener {
     private final CombatChecks combatChecks;
     private final ChatCheck chatCheck;
     private final DupeCheck dupeCheck;
+    private final PacketChecks packetChecks;
+    private final MoveSimulator moveSimulator;
 
-    public AvAListener(AvAAntiCheat plugin, MovementChecks movementChecks, CombatChecks combatChecks, ChatCheck chatCheck) {
+    public AvAListener(AvAAntiCheat plugin,
+                       MovementChecks movementChecks,
+                       CombatChecks combatChecks,
+                       ChatCheck chatCheck,
+                       PacketChecks packetChecks,
+                       MoveSimulator moveSimulator) {
         this.plugin = plugin;
         this.movementChecks = movementChecks;
         this.combatChecks = combatChecks;
         this.chatCheck = chatCheck;
         this.dupeCheck = new DupeCheck(plugin);
+        this.packetChecks = packetChecks;
+        this.moveSimulator = moveSimulator;
     }
 
     @Override
     public void onPluginMessageReceived(String channel, Player player, byte[] message) {
         if (channel.equals("minecraft:brand")) {
             try {
-                // Minecraft prefixes packet strings with a length byte.
-                // For a short string like a brand name, it's exactly 1 byte.
-                int length = message[0];
+                int length = message[0] & 0xFF;
+                if (length <= 0 || 1 + length > message.length) return;
                 String brand = new String(message, 1, length, StandardCharsets.UTF_8);
 
                 PlayerData data = plugin.getPlayerData(player.getUniqueId());
@@ -105,14 +115,50 @@ public class AvAListener implements Listener, PluginMessageListener {
         PlayerData data = plugin.getPlayerData(player.getUniqueId());
 
         if (data != null && data.isInCombat()) {
-            String command = event.getMessage().toLowerCase();
-            if (command.startsWith("/home") || command.startsWith("/spawn") ||
-                    command.startsWith("/tpa") || command.startsWith("/tpaccept") ||
-                    command.startsWith("/back") || command.startsWith("/warp")) {
+            String command = event.getMessage().toLowerCase(java.util.Locale.ROOT).trim();
+            String base = command.split("\\s+")[0];
+            for (String blocked : plugin.getCombatBlockedCommands()) {
+                if (base.equals(blocked) || command.startsWith(blocked + " ")) {
+                    event.setCancelled(true);
+                    player.sendMessage(plugin.getPrefix() + ChatColor.RED + "You cannot use that command while in combat!");
+                    plugin.logToFile(player.getName(), "Prevented combat log command: " + command);
+                    return;
+                }
+            }
+        }
+    }
 
-                event.setCancelled(true);
-                player.sendMessage(plugin.getPrefix() + ChatColor.RED + "You cannot teleport while in combat!");
-                plugin.logToFile(player.getName(), "Prevented combat log command: " + command);
+    @EventHandler
+    public void onBlockPlace(BlockPlaceEvent event) {
+        if (plugin.getCurrentAntiCheatMode() == 0) return;
+        Player player = event.getPlayer();
+        if (plugin.shouldBypassChecks(player)) return;
+        if (player.getGameMode().toString().contains("CREATIVE") || player.getGameMode().toString().contains("SPECTATOR")) return;
+
+        PlayerData data = plugin.getPlayerData(player.getUniqueId());
+        if (data == null) return;
+
+        long now = System.currentTimeMillis();
+        if (now - data.scaffoldWindowStart > 1000L) {
+            data.scaffoldWindowStart = now;
+            data.scaffoldPlaceCount = 1;
+            return;
+        }
+        data.scaffoldPlaceCount++;
+
+        int ping = com.nolan.ava.util.PingUtils.getPlayerPing(player);
+        int placeCap = 12 + Math.min(8, ping / 50);
+        if (data.scaffoldPlaceCount > placeCap) {
+            data.scaffoldViolations++;
+            plugin.logToFile(player.getName(), "CHECK:Scaffold VIO=" + data.scaffoldViolations
+                    + " Places/s=" + data.scaffoldPlaceCount + " Cap=" + placeCap);
+            data.scaffoldPlaceCount = placeCap / 2;
+            if (data.scaffoldViolations > plugin.getScaffoldViolationLimit()) {
+                plugin.punishPlayer(player, "Scaffold (Place Rate)", data.scaffoldViolations);
+            } else if (data.scaffoldViolations >= 2) {
+                player.sendMessage(plugin.getPrefix() + ChatColor.RED
+                        + "Warning! Unusual block place rate. ("
+                        + data.scaffoldViolations + "/" + plugin.getScaffoldViolationLimit() + ")");
             }
         }
     }
@@ -128,13 +174,50 @@ public class AvAListener implements Listener, PluginMessageListener {
         if (data != null) {
             dupeCheck.checkInventoryClick(event, data);
 
-            // Pure Vanilla Minecraft physically prevents you from sprinting with an open inventory.
-            // If they are sprinting AND clicking items, they are using a hacked client.
             if (player.isSprinting() && !player.isFlying() && !player.isGliding()) {
-                event.setCancelled(true);
-                player.sendMessage(plugin.getPrefix() + ChatColor.RED + "Inventory actions while sprinting are blocked!");
-                plugin.logToFile(player.getName(), "Blocked InventoryWalk (Sprinting Hack Detected)");
+                handleInventoryWalk(event, player, data);
+            } else if (data.inventoryWalkStreak > 0) {
+                data.inventoryWalkStreak = Math.max(0, data.inventoryWalkStreak - 1);
             }
+        }
+    }
+
+    /**
+     * Soft by default: severity (check-severity.inventory-walk) controls when we cancel.
+     * 1-3 = log/warn only; 4-5 = cancel after a streak; 6-8 = cancel sooner.
+     */
+    private void handleInventoryWalk(InventoryClickEvent event, Player player, PlayerData data) {
+        int severity = plugin.getInventoryWalkSeverity();
+        data.inventoryWalkStreak++;
+
+        int cancelAfter;
+        if (severity <= 3) {
+            cancelAfter = Integer.MAX_VALUE; // never cancel at soft settings
+        } else if (severity <= 5) {
+            cancelAfter = 5;
+        } else if (severity <= 7) {
+            cancelAfter = 2;
+        } else {
+            cancelAfter = 1;
+        }
+
+        if (data.inventoryWalkStreak == 1 || data.inventoryWalkStreak % 4 == 0) {
+            plugin.logToFile(player.getName(),
+                    "InventoryWalk streak=" + data.inventoryWalkStreak + " severity=" + severity);
+        }
+
+        if (data.inventoryWalkStreak >= cancelAfter) {
+            event.setCancelled(true);
+            if (data.inventoryWalkStreak == cancelAfter || data.inventoryWalkStreak % 3 == 0) {
+                player.sendMessage(plugin.getPrefix() + ChatColor.RED
+                        + "Inventory actions while sprinting are blocked!");
+            }
+            return;
+        }
+
+        if (severity <= 3 && data.inventoryWalkStreak >= 6 && data.inventoryWalkStreak % 6 == 0) {
+            player.sendMessage(plugin.getPrefix() + ChatColor.YELLOW
+                    + "Warning: inventory use while sprinting looks suspicious.");
         }
     }
 
@@ -156,25 +239,15 @@ public class AvAListener implements Listener, PluginMessageListener {
         if (!plugin.isCheckModsEnabled() || plugin.getCurrentAntiCheatMode() == 0) return;
 
         Player player = event.getPlayer();
+        if (plugin.shouldBypassChecks(player)) return;
+
         String channel = event.getChannel().toLowerCase();
-        PlayerData data = plugin.getPlayerData(player.getUniqueId());
-
-        if (data != null && SeeU.isSeeUFix(channel)) {
-            data.bypassAllChecks = true;
-            return;
-        }
-
-        if (data != null && data.bypassAllChecks) {
-            return;
-        }
 
         for (String banned : plugin.getBannedMods()) {
+            if (banned == null || banned.length() < 3) continue; // avoid short-string false positives
             if (channel.contains(banned.toLowerCase())) {
                 plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    PlayerData laterData = plugin.getPlayerData(player.getUniqueId());
-                    if (laterData == null || laterData.bypassAllChecks) {
-                        return;
-                    }
+                    if (!player.isOnline() || plugin.shouldBypassChecks(player)) return;
                     String logMessage = "AUTOMATICALLY KICKED " + player.getName() + " for Banned Mod Channel: " + channel;
                     plugin.getServer().broadcastMessage(plugin.getPrefix() + ChatColor.DARK_RED + player.getName() + " was kicked for using a banned mod.");
                     plugin.notifyOperators(player.getName() + " was kicked for banned mod channel: " + channel + ".");
@@ -192,9 +265,13 @@ public class AvAListener implements Listener, PluginMessageListener {
         UUID playerId = player.getUniqueId();
 
         plugin.putPlayerData(playerId, new PlayerData());
-        plugin.logToFile(player.getName(), "Player joined (IP: " + player.getAddress().getHostString() + ")");
+        String ip = "unknown";
+        if (player.getAddress() != null && player.getAddress().getAddress() != null) {
+            ip = player.getAddress().getHostString();
+        }
+        plugin.logToFile(player.getName(), "Player joined (IP: " + ip + ")");
 
-        if (player.isOp() && plugin.getUpdateManager().isUpdateAvailable()) {
+        if (player.hasPermission("ava.admin") && plugin.getUpdateManager().isUpdateAvailable()) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 player.sendMessage(plugin.getPrefix() + ChatColor.RED + ChatColor.BOLD + "AVA ANTICHEAT UPDATE AVAILABLE!");
                 player.sendMessage(plugin.getPrefix() + ChatColor.YELLOW + "Current Version: " + ChatColor.WHITE + plugin.getVersion());
@@ -215,10 +292,38 @@ public class AvAListener implements Listener, PluginMessageListener {
                     player.setHealth(0.0);
                     player.sendMessage(plugin.getPrefix() + ChatColor.RED + "You combat logged! Your inventory was cleared and you were killed.");
                     plugin.logToFile(player.getName(), "Punished for Combat Logging on rejoin.");
-                    plugin.getCombatLoggedPlayers().remove(playerId);
+                    plugin.clearCombatLogger(playerId);
                 });
             }
         }
+
+        if (plugin.isCheckPacketEnabled()) {
+            packetChecks.logUnavailableOnce();
+        }
+    }
+
+    @EventHandler
+    public void onPlayerTeleport(PlayerTeleportEvent event) {
+        Player player = event.getPlayer();
+        PlayerData data = plugin.getPlayerData(player.getUniqueId());
+        if (data == null) return;
+
+        // Short grace so /home, portals, chorus, plugin TPs don't trip movement checks.
+        long graceMs = 1500L;
+        PlayerTeleportEvent.TeleportCause cause = event.getCause();
+        if (cause == PlayerTeleportEvent.TeleportCause.ENDER_PEARL
+                || cause == PlayerTeleportEvent.TeleportCause.CHORUS_FRUIT) {
+            graceMs = 2200L;
+        } else if (cause == PlayerTeleportEvent.TeleportCause.UNKNOWN
+                || cause == PlayerTeleportEvent.TeleportCause.PLUGIN
+                || cause == PlayerTeleportEvent.TeleportCause.COMMAND) {
+            graceMs = 2000L;
+        }
+        data.extendTeleportExempt(graceMs);
+        data.flyViolations = 0;
+        data.speedViolations = Math.max(0, data.speedViolations - 1);
+        data.spiderTicks = 0;
+        moveSimulator.applyKnockbackHint(data, player.getVelocity());
     }
 
     @EventHandler
@@ -226,17 +331,25 @@ public class AvAListener implements Listener, PluginMessageListener {
         Player player = event.getPlayer();
 
         if (player.getGameMode().toString().contains("CREATIVE") || player.getGameMode().toString().contains("SPECTATOR")) return;
+        if (event.getTo() == null) return;
 
         PlayerData data = plugin.getPlayerData(player.getUniqueId());
         if (data != null) {
+            // Run MoveSimulator before flight updates wasOnGround (jump detection needs prior ground).
+            moveSimulator.onPlayerMove(event, data);
+
             movementChecks.checkSpider(event, data);
             movementChecks.checkFlight(event, data);
             movementChecks.checkSpeed(event, data);
             movementChecks.checkPhase(event, data);
 
-            if (data.isRiptiding && player.isOnGround()) data.isRiptiding = false;
+            // Experimental packet Bukkit fallback — no-op when disabled / PE hooks active
+            packetChecks.onPlayerMove(event, data);
 
-            if (data.isWindBursting && player.isOnGround() && (System.currentTimeMillis() - data.lastBreezeBoostTime > 1000)) {
+            if (data.isRiptiding && MovementChecks.isServerOnGround(player)) data.isRiptiding = false;
+
+            if (data.isWindBursting && MovementChecks.isServerOnGround(player)
+                    && (System.currentTimeMillis() - data.lastBreezeBoostTime > 1000)) {
                 data.isWindBursting = false;
             }
         }
@@ -257,22 +370,6 @@ public class AvAListener implements Listener, PluginMessageListener {
     }
 
     @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent event) {
-        ItemStack item = event.getItem();
-        if (item != null && item.getType().name().contains("TRIDENT")) {
-            if (item.containsEnchantment(org.bukkit.enchantments.Enchantment.RIPTIDE)) {
-                PlayerData data = plugin.getPlayerData(event.getPlayer().getUniqueId());
-                if (data != null) {
-                    data.isRiptiding = true;
-                    data.lastVelocityTime = System.currentTimeMillis();
-                    data.flyViolations = 0;
-                    data.speedViolations = 0;
-                }
-            }
-        }
-    }
-
-    @EventHandler
     public void onPlayerRiptide(PlayerRiptideEvent event) {
         Player player = event.getPlayer();
         PlayerData data = plugin.getPlayerData(player.getUniqueId());
@@ -281,7 +378,8 @@ public class AvAListener implements Listener, PluginMessageListener {
             data.flyViolations = 0;
             data.spiderTicks = 0;
             data.speedViolations = 0;
-            data.lastVelocityTime = System.currentTimeMillis();
+            data.extendVelocityExempt(1200);
+            moveSimulator.applyKnockbackHint(data, player.getVelocity());
         }
     }
 
@@ -291,24 +389,27 @@ public class AvAListener implements Listener, PluginMessageListener {
             Player player = (Player) event.getEntity();
             PlayerData data = plugin.getPlayerData(player.getUniqueId());
             if (data != null) {
-                long now = System.currentTimeMillis();
-                data.lastVelocityTime = now;
-                data.lastCombatActivityTime = now;
-
-                if (event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION ||
-                        event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
-                    data.lastBreezeBoostTime = now;
+                long durationMs = Math.min(800L, Math.max(200L, (long) (event.getFinalDamage() * 45)));
+                if (event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION
+                        || event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
+                    durationMs = 1200L;
+                    data.lastBreezeBoostTime = System.currentTimeMillis();
                     data.isWindBursting = true;
                     data.flyViolations = 0;
                 }
 
                 if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
+                    data.tookFallDamage = true;
+                    data.lastFallDamageTime = System.currentTimeMillis();
+                    data.serverFallDistance = 0.0;
                     ItemStack item = player.getInventory().getItemInMainHand();
                     if (item != null && item.getType().name().contains("MACE")) {
                         data.isWindBursting = true;
-                        data.lastVelocityTime = now;
+                        durationMs = Math.max(durationMs, 1000L);
                     }
                 }
+
+                data.extendVelocityExempt(durationMs);
             }
         }
     }
@@ -325,7 +426,7 @@ public class AvAListener implements Listener, PluginMessageListener {
                     PlayerData data = plugin.getPlayerData(p.getUniqueId());
                     if (data != null) {
                         data.lastBreezeBoostTime = System.currentTimeMillis();
-                        data.lastVelocityTime = System.currentTimeMillis();
+                        data.extendVelocityExempt(900);
                         data.isWindBursting = true;
                         data.flyViolations = 0;
                     }
@@ -338,8 +439,12 @@ public class AvAListener implements Listener, PluginMessageListener {
     public void onPlayerVelocity(org.bukkit.event.player.PlayerVelocityEvent event) {
         PlayerData data = plugin.getPlayerData(event.getPlayer().getUniqueId());
         if (data != null) {
-            data.lastVelocityTime = System.currentTimeMillis();
+            Vector vel = event.getVelocity();
+            double mag = vel.length();
+            long durationMs = Math.min(1500L, Math.max(250L, (long) (mag * 800)));
+            data.extendVelocityExempt(durationMs);
             data.flyViolations = 0;
+            moveSimulator.applyKnockbackHint(data, vel);
         }
     }
 
@@ -353,23 +458,12 @@ public class AvAListener implements Listener, PluginMessageListener {
 
     @EventHandler
     public void onPlayerAnimate(PlayerAnimationEvent event) {
-        if (!plugin.isCheckCombatEnabled()) return;
-        if (plugin.getCurrentAntiCheatMode() != 1 && plugin.getCurrentAntiCheatMode() != 3) return;
-
         if (event.getAnimationType() != PlayerAnimationType.ARM_SWING) return;
         Player player = event.getPlayer();
         PlayerData data = plugin.getPlayerData(player.getUniqueId());
         if (data == null) return;
 
-        if (com.nolan.ava.util.BlockUtils.isHighMobilityItem(player)) {
-            data.lastDamageTime = 0;
-            return;
-        }
-
-        if (data.lastDamageTime > 0) {
-            data.sequenceViolations = Math.max(0, data.sequenceViolations - 1);
-            data.lastDamageTime = 0;
-        }
+        data.lastSwingTime = System.currentTimeMillis();
     }
 
     @EventHandler
@@ -378,7 +472,7 @@ public class AvAListener implements Listener, PluginMessageListener {
             Player victim = (Player) event.getEntity();
             PlayerData victimData = plugin.getPlayerData(victim.getUniqueId());
             if (victimData != null) {
-                victimData.lastVelocityTime = System.currentTimeMillis();
+                victimData.extendVelocityExempt(Math.min(800L, Math.max(250L, (long) (event.getFinalDamage() * 45))));
 
                 String damagerType = event.getDamager().getType().name();
                 if (damagerType.contains("BREEZE") || damagerType.contains("WIND_CHARGE")) {
@@ -386,6 +480,7 @@ public class AvAListener implements Listener, PluginMessageListener {
                     victimData.isWindBursting = true;
                     victimData.flyViolations = 0;
                     victimData.spiderTicks = 0;
+                    victimData.extendVelocityExempt(900);
                 }
             }
         }
@@ -409,23 +504,31 @@ public class AvAListener implements Listener, PluginMessageListener {
                 if (com.nolan.ava.util.BlockUtils.isHighMobilityItem(attacker)) {
                     attackerData.isWindBursting = true;
                     attackerData.flyViolations = 0;
-                }
-
-                if (event.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
+                    attackerData.extendVelocityExempt(800);
+                } else if (event.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
                     combatChecks.checkAttackSpeed(attacker, attackerData);
+                    combatChecks.checkAttackSequence(attacker, attackerData);
+                    combatChecks.checkReachAndLos(attacker, event.getEntity(), attackerData);
+                    combatChecks.checkMultiHit(attacker, event.getEntity(), attackerData);
                 }
                 attackerData.lastDamageTime = now;
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    combatChecks.checkAttackSequence(attacker, attackerData);
-                }, 1);
             }
         }
 
-        if (event.getEntity() instanceof Player && event.getDamager() instanceof LivingEntity) {
+        // Combat-tag for melee and projectile shooters (arrows, tridents, etc.).
+        if (event.getEntity() instanceof Player) {
             Player victim = (Player) event.getEntity();
-            LivingEntity damager = (LivingEntity) event.getDamager();
-            if (damager instanceof Player) {
-                Player attacker = (Player) damager;
+            Player attacker = null;
+            if (event.getDamager() instanceof Player) {
+                attacker = (Player) event.getDamager();
+            } else if (event.getDamager() instanceof Projectile) {
+                Projectile proj = (Projectile) event.getDamager();
+                if (proj.getShooter() instanceof Player) {
+                    attacker = (Player) proj.getShooter();
+                }
+            }
+
+            if (attacker != null && !attacker.equals(victim)) {
                 long now = System.currentTimeMillis();
                 long combatEndTimestamp = now + TimeUnit.SECONDS.toMillis(plugin.getCombatTimeoutSeconds());
 
@@ -505,7 +608,7 @@ public class AvAListener implements Listener, PluginMessageListener {
 
                 player.getInventory().clear();
 
-                plugin.getCombatLoggedPlayers().add(player.getUniqueId());
+                plugin.markCombatLogger(player.getUniqueId());
                 plugin.killPlayer(player, plugin.getPvpLogReason());
             }
         }

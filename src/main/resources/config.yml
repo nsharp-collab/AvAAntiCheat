@@ -1,15 +1,16 @@
 ## AvA Anti-Cheat default configuration
 
 # config-version: Do not touch this! The plugin uses it to detect if your config file is outdated.
-config-version: 4
+config-version: 5
 
 # default-mode: plugin startup mode (0=Disabled, 1=All, 2=Flight, 3=PvP, 4=Chat Spam)
 default-mode: 1
 
 # --- Update Settings ---
 # If true, the plugin will download the latest .jar from GitHub when a version mismatch is found.
-# Requires a server restart to apply.
-auto-update: true
+# Verifies SHA-256 via GitHub Releases API digest (preferred) or AvAAntiCheat.jar.sha256 sidecar.
+# Checksum must match or install is aborted. Requires a server restart to apply.
+auto-update: false
 
 # enable-logging: when true the plugin writes to `plugins/AvAAntiCheat/logs/`
 enable-logging: true
@@ -30,6 +31,17 @@ enabled-checks:
   combat: true
   mod-detector: true
   dupe: true
+  # Experimental packet checks. DEFAULT OFF.
+  # Requires the PacketEvents plugin installed (softdepend, like Geyser).
+  # Only enable on Minecraft 1.21.11 for now — other 1.21.x builds are untested.
+  # Without PacketEvents (or on a non-1.21.11 server), hooks stay inactive; Bukkit checks still run.
+  packet: false
+  # Experimental move simulator — leave false unless testing.
+  move-simulator: false
+
+# When true, experimental checks (packet / move-simulator) only log residuals and never punish.
+experimental:
+  log-only: true
 
 # --- Check Severity Settings ---
 # Set a sensitivity value for each check from 1 to 8.
@@ -45,12 +57,15 @@ check-severity:
   combat: 5
   mod-detector: 5
   dupe: 5
+  # Inventory-while-sprinting: 1-3 log/warn only, 4-5 cancel after a streak, 6-8 stricter cancel.
+  # Default 3 = soft (no hard cancel on a single click).
+  inventory-walk: 3
 
 # --- Mod Detector Settings ---
 # The Mod Detector listens to the background "handshake" channels clients send to the server.
 # NOTE: This only catches "honest" mods (like minimaps or world downloaders) that announce themselves.
 # Hacked clients (like Meteor or Wurst) lie to the server and say they are Vanilla, so they won't show up here!
-  # ^^ to respond to this, these mods are only hidden if the player decides to enable the "clientspoof" modules which some people either forget to do, or are too dumb to do so
+# Entries shorter than 3 characters are ignored to avoid false positives.
 # 
 # To find a mod's channel name, have a player join with the mod installed, and type: /ac mods <player>
 # You only need to type a part of the channel name here to ban it.
@@ -64,7 +79,6 @@ banned-mods:
   - "meteor"
   - "impact"
   - "future"
-  - "LD"
   - "mapwriter"
   - "printer"
   - "boze"
@@ -82,7 +96,8 @@ banned-mods:
 # speed-check: Configure the sensitivity of the speed detection
 speed-check:
   # base-limit: The max horizontal distance allowed per tick for normal walking/sprinting.
-  base-limit: 0.65
+  # Vanilla sprint is ~0.28/tick; 0.36 leaves a modest margin without tracking cheaters via EMA.
+  base-limit: 0.36
   # ice-limit: The max speed allowed while on ice.
   ice-limit: 1.3
   # grace-period-ms: Grace period in milliseconds after elytra is unequipped.
@@ -95,6 +110,17 @@ combat-timeout-seconds: 30
 # Valid options: ACTION_BAR, BOSS_BAR, SUBTITLE
 combat-timer-position: ACTION_BAR
 
+# Commands blocked while a player is tagged in combat (case-insensitive; leading / optional).
+combat-blocked-commands:
+  - /home
+  - /spawn
+  - /tpa
+  - /tpaccept
+  - /back
+  - /warp
+  - /rtp
+  - /tp
+
 # kick-limits: number of offenses of each type required before an automatic kick
 kick-limits:
   flight: 5
@@ -103,4 +129,9 @@ kick-limits:
   chat-spam: 5
   sequence: 5
   attack-speed: 5
-  dupe: 1
+  dupe: 5
+  reach: 5
+  los: 5
+  multi-aura: 5
+  nofall: 5
+  scaffold: 8
