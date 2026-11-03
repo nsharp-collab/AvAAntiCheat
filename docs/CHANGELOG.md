@@ -1,4 +1,36 @@
 # Changelog
+## STABLE-[1.9.5] — 2026-11-3
+# What's Changed
+* Improved checks by @anomalytty-coder in https://github.com/nsharp-collab/AvAAntiCheat/pull/6
+* somewhat large upd, math, config improvements, general imprv by @anomalytty-coder in https://github.com/nsharp-collab/AvAAntiCheat/pull/11
+
+
+**Changes & Fixes:**
+* Added optional **PacketEvents** checks for experimental packet-rate, on-ground mismatch, movement, and swing-order signals. These are **off by default**, intended for Minecraft 1.21.11, and log-only by default.
+* Added an optional **movement simulator** for experimental movement-residual logging.
+* Expanded detection with hover/no-fall, reach, hit-through-blocks, multi-target combat, and scaffold block-place-rate checks.
+* Improved movement handling and false-positive safeguards, including teleport and knockback grace periods, and adjusted speed detection.
+* Made combat-logger penalties persist across server restarts and made combat-blocked commands configurable.
+* Improved update safety with SHA-256 verification; automatic updates are now disabled by default.
+* Reworked staff bypass to use the `ava.bypass` permission and removed the secret-disable command.
+* Refactored code structure: Split the monolithic main Java file into organized individual files.
+* Fixed auto-updater mislabeling version numbers.
+* Fixed speed check grace periods to better handle player lag.
+* In a previous update a "/ac info <player> <true|false (show perms)" command was added, which lets you put the name of a player and get some useful mod info off them.
+* Added Smart Hardware Profiling. The plugin now runs a short startup benchmark to test your CPU. Fast processors will automatically use the new strict vector math, while budget or ARM hosts will fall back to the classic lightweight checks to preserve TPS.
+* Added the /ac perf <high|light|auto> command, allowing server owners to manually override the hardware profile.
+* Integrated native Bedrock support via the Geyser API. Bedrock players automatically receive a slight leniency buffer on movement checks to account for packet translation jitter, reducing false positives.
+* Rewrote the Speed check for high-performance mode to use Time-Delta calculations. It now measures the time elapsed between packets rather than just flat distance, preventing players from saving up lag to teleport.
+* Added Vector Gravity Prediction to the Flight check. It now calculates the exact expected Y-velocity using Minecraft's internal gravity formula to catch hover and slow-fall cheats.
+* Upgraded the Phase check with Vector Ray-Tracing to detect horizontal clipping (H-Clip) through walls, even if the start and end blocks are both air.
+* Implemented a strict Terminal Velocity limit to instantly block vertical downward clipping (V-Clip).
+* Cleaned up the Maven pom.xml dependencies to ensure the plugin stays lightweight without pulling in unnecessary Geyser UI libraries.
+* Added customizable combat timer UI positions (ActionBar, BossBar, Subtitle).
+﻿
+## New Contributors
+* @anomalytty-coder made their first contribution in https://github.com/nsharp-collab/AvAAntiCheat/pull/6
+
+
 ## DEV-[1.9.5]-SPLIT — 2026-07-28
 
 > **WARNING: THIS IS AN UNFINISHED TEST BUILD.**
