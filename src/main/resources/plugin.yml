@@ -3,7 +3,7 @@ version: 1.9.5
 main: com.nolan.ava.AvAAntiCheat
 api-version: 1.21
 authors: [Nolan]
-description: An anti-cheat system detecting flight, spam, and PvP logging.
+description: An anti-cheat system detecting various movement hacks, spam, and PvP logging.
 # Optional integrations: Geyser (Bedrock ping) and PacketEvents (experimental packet checks).
 softdepend: [Geyser-Spigot, packetevents, ProtocolLib, ProtocolSupport, ViaVersion, ViaBackwards, ViaRewind]
 commands:
