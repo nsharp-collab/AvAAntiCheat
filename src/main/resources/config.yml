@@ -10,7 +10,7 @@ default-mode: 1
 # If true, the plugin will download the latest .jar from GitHub when a version mismatch is found.
 # Verifies SHA-256 via GitHub Releases API digest (preferred) or AvAAntiCheat.jar.sha256 sidecar.
 # Checksum must match or install is aborted. Requires a server restart to apply.
-auto-update: false
+auto-update: true
 
 # enable-logging: when true the plugin writes to `plugins/AvAAntiCheat/logs/`
 enable-logging: true
