@@ -5,7 +5,7 @@
 
     <groupId>com.nolan</groupId>
     <artifactId>AvAAntiCheat</artifactId>
-    <version>1.9.5-DEV-PACKET</version>
+    <version>1.9.5</version>
     <packaging>jar</packaging>
 
     <properties>

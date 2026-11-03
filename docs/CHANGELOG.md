@@ -1,6 +1,6 @@
 # Changelog
 ## STABLE-[1.9.5] — 2026-11-3
-# What's Changed
+## What's Changed
 * Improved checks by @anomalytty-coder in https://github.com/nsharp-collab/AvAAntiCheat/pull/6
 * somewhat large upd, math, config improvements, general imprv by @anomalytty-coder in https://github.com/nsharp-collab/AvAAntiCheat/pull/11
 

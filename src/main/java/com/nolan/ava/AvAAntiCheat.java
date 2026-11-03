@@ -57,7 +57,7 @@ public class AvAAntiCheat extends JavaPlugin {
 
     // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "DEV-1.9.5-PACKET";
+    private static final String AC_VERSION = "1.9.5";
     private static final String AC_AUTHOR = "Nolan";
     public static final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
 
