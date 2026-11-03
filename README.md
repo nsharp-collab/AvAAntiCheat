@@ -112,4 +112,4 @@ AvA Anti-Cheat values transparency. Please be aware of the following:
 
 * **bStats Metrics**: This plugin uses [bStats](https://bstats.org/) to collect anonymous usage data (such as server version and active Anti-Cheat mode) to help improve development.
 * **Local Logging**: Detections and administrative actions are logged locally to `anticheat_log.txt` within the plugin folder. This data stays on your server and is not shared with the developer.
-* **Full Details**: For a complete list of third-party dependencies and licensing information, please refer to our [Notice.md](./notice.md).
+* **Full Details**: For a complete list of third-party dependencies and licensing information, please refer to our [NOTICE](./NOTICE).
