@@ -17,8 +17,8 @@ jobs:
           java-version: '21' # 1.21.x requires Java 21
           distribution: 'temurin'
 
-      - name: Build Plugin
-        run: ./gradlew build
+      - name: Build Plugin with Maven
+        run: mvn clean package
 
       - name: Publish to Modrinth and CurseForge
         uses: Kirstein/mc-publish@v3.3
@@ -32,7 +32,7 @@ jobs:
           curseforge-id: '1378249'
 
           # --- Plugin & Version Info ---
-          files: 'build/libs/*.jar'
+          files: 'target/AvAAntiCheat*.jar' # Updated for Maven output directory
           loaders: |
             paper
             spigot
