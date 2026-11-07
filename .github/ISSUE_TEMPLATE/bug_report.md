@@ -19,6 +19,10 @@ A clear and concise description of what you expected to happen.
 **Screenshots**
 If applicable, add screenshots to help explain your problem.
 
+**Already reported**
+Has this issue already been reported or is there another open issue about this problem?
+If the answer is yes, please comment on that issue instead of opening a new one.
+
 **System information (please complete the following information):**
  - OS: [e.g. Windows]
  - Minecraft client type [e.g Bedrock or Java]
