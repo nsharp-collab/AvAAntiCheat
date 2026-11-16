@@ -36,7 +36,7 @@ Was generative AI (e.g., GitHub Copilot, ChatGPT, Claude) used to generate, refa
 > *Example: "Used ChatGPT to help draft the math formula in FlyA.java and comments in config.yml; manually verified and tested in-game."*
 
 ## Pre-Review Checklist
-- [ ] My branch is rebased and up-to-date with `main` (no unnecessary merge commits).
+- [ ] My branch is rebased and up-to-date with `dev` (no unnecessary merge commits).
 - [ ] My PR title clearly summarizes the contribution (e.g., `Feat: Add velocity check V4` or `Fix: Lower false positives on Timer check`).
 - [ ] If adding a **New Check**, it follows the `com.nolan.ava.check` structure, includes sensible defaults, and is toggleable in the main config.
 - [ ] *(Optional)* **Contributor Credit:** Name/handle to list in `AUTHORS.md` and the contributors command (leave blank to use your GitHub username):
