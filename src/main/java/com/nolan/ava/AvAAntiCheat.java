@@ -13,7 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+//This file has already been participated in by StoodMusic58914
+//This file already has SM.SMP and SM Team involved
+//Permission reserved for SM-Team:{
+//Anyone has power, but the prerequisite is to comply with: http://www.apache.org/licenses/LICENSE-2.0
+//}
 package com.nolan.ava;
 
 import com.nolan.ava.checks.ChatCheck;
@@ -54,16 +58,13 @@ import java.util.Set;
 import java.util.UUID;
 
 public class AvAAntiCheat extends JavaPlugin {
-
-    // Basic plugin identity details
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
     private static final String AC_VERSION = "1.9.5";
     private static final String AC_AUTHOR = "Nolan";
     public static final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
+    private static final int CONFIG_VERSION = 5;
 
     private int currentAntiCheatMode = 0;
-
-    // Toggles for our various cheat checks
     private boolean checkFlightEnabled = true;
     private boolean checkSpeedEnabled = true;
     private boolean checkSpiderEnabled = true;
@@ -75,15 +76,12 @@ public class AvAAntiCheat extends JavaPlugin {
     private boolean checkPacketEnabled = false;
     private boolean checkMoveSimulatorEnabled = false;
     private boolean experimentalLogOnly = true;
-
     private List<String> bannedMods = new ArrayList<>();
-
     private double baseSpeedLimit = 0.36;
     private double iceSpeedLimit = 1.3;
     private int speedViolationLimit = 5;
     private int dupeViolationLimit = 1;
     private long glideGracePeriodMs = 7000;
-
     private int flyViolationLimit = 5;
     private int spiderViolationLimit = 5;
     private int spamViolationLimit = 5;
@@ -94,7 +92,6 @@ public class AvAAntiCheat extends JavaPlugin {
     private int multiAuraViolationLimit = 5;
     private int noFallViolationLimit = 5;
     private int scaffoldViolationLimit = 8;
-
     private int flightSeverity = 5;
     private int speedSeverity = 5;
     private int spiderSeverity = 5;
@@ -104,18 +101,14 @@ public class AvAAntiCheat extends JavaPlugin {
     private int modDetectorSeverity = 5;
     private int dupeSeverity = 5;
     private int inventoryWalkSeverity = 3;
-
     private long combatTimeoutSeconds = 30;
     private String combatTimerPosition = "ACTION_BAR";
     private List<String> combatBlockedCommands = new ArrayList<>();
-
     private boolean enableFileLogging = true;
     private int maxLogFiles = 20;
-
     private final HashMap<UUID, PlayerData> playerDataMap = new HashMap<>();
     private final Set<UUID> combatLoggedPlayers = new HashSet<>();
     private File combatLoggersFile;
-
     private HardwareManager hardwareManager;
     private LogManager logManager;
     private UpdateManager updateManager;
@@ -125,23 +118,15 @@ public class AvAAntiCheat extends JavaPlugin {
     public void onEnable() {
         hardwareManager = new HardwareManager(getLogger());
         hardwareManager.detect();
-
         if (!getDataFolder().exists()) getDataFolder().mkdirs();
-
         File logFolder = new File(getDataFolder(), "logs");
         if (!logFolder.exists()) logFolder.mkdirs();
-
         saveDefaultConfig();
-
-        int currentConfigVersion = 5;
-        if (getConfig().getInt("config-version", 0) < currentConfigVersion) {
+        if (getConfig().getInt("config-version", 0) < CONFIG_VERSION) {
             getLogger().warning("Your config.yml is outdated! Renaming to config-old.yml and generating a fresh one...");
-
             File configFile = new File(getDataFolder(), "config.yml");
             File oldConfigFile = new File(getDataFolder(), "config-old.yml");
-
             if (oldConfigFile.exists()) oldConfigFile.delete();
-
             if (configFile.renameTo(oldConfigFile)) {
                 saveDefaultConfig();
                 reloadConfig();
@@ -149,70 +134,44 @@ public class AvAAntiCheat extends JavaPlugin {
                 getLogger().severe("Failed to backup outdated config.yml!");
             }
         }
-
         logManager = new LogManager(this, logFolder, enableFileLogging, maxLogFiles);
         updateManager = new UpdateManager(this, AC_VERSION, AC_PREFIX, false);
-
         loadConfigValues();
         combatLoggersFile = new File(getDataFolder(), "combat-loggers.txt");
         loadCombatLoggers();
-
-        if (enableFileLogging) {
-            logManager.setupLoggingSession();
-        }
-
-        int pluginId = 28550;
-        Metrics metrics = new Metrics(this, pluginId);
+        if (enableFileLogging) logManager.setupLoggingSession();
+        Metrics metrics = new Metrics(this, 28550);
         try {
             metrics.addCustomChart(new SimplePie("anti_cheat_mode", () -> getModeDescription(currentAntiCheatMode)));
             metrics.addCustomChart(new SimplePie("hardware_profile", hardwareManager::getCurrentHardwareMode));
         } catch (Exception e) {
             getLogger().warning("Couldn't set up bStats chart: " + e.getMessage());
         }
-
         MovementChecks movementChecks = new MovementChecks(this);
         CombatChecks combatChecks = new CombatChecks(this);
         ChatCheck chatCheck = new ChatCheck(this);
         packetChecks = new PacketChecks(this);
         MoveSimulator moveSimulator = new MoveSimulator(this);
         AvAListener listener = new AvAListener(this, movementChecks, combatChecks, chatCheck, packetChecks, moveSimulator);
-
-        // Register incoming plugin channels for Brand reading (Strictly 1.13+ Format)
         getServer().getMessenger().registerIncomingPluginChannel(this, "minecraft:brand", listener);
-
-        // This allows the server to send plugin messages properly (e.g. BungeeCord hooks)
         getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
-
         getServer().getPluginManager().registerEvents(listener, this);
-
         ACCommandExecutor commandExecutor = new ACCommandExecutor(this);
         getCommand("ac").setExecutor(commandExecutor);
-
-        // Optional PacketEvents hooks (softdepend) — no-op unless PE is installed + config enabled.
         packetChecks.tryRegisterPacketListeners();
-
         Bukkit.getScheduler().runTaskTimer(this, this::tickCombatTimers, 20L, 20L);
-
         Bukkit.getScheduler().runTaskLater(this, this::sendStartupBanner, 60L);
-
         logToFile("SYSTEM", "Plugin Enabled - Session Started (Version " + AC_VERSION + ")");
-
         updateManager.checkVersionAndDownload();
     }
 
     @Override
     public void onDisable() {
         for (PlayerData data : playerDataMap.values()) {
-            if (data.combatBossBar != null) {
-                data.combatBossBar.removeAll();
-            }
+            if (data.combatBossBar != null) data.combatBossBar.removeAll();
         }
         saveCombatLoggers();
-
-        if (packetChecks != null) {
-            packetChecks.unregisterPacketListeners();
-        }
-
+        if (packetChecks != null) packetChecks.unregisterPacketListeners();
         getServer().getConsoleSender().sendMessage(AC_PREFIX + ChatColor.RED + "AvA anti-cheat shutting down.");
         logToFile("SYSTEM", "Plugin Disabled");
     }
@@ -227,8 +186,7 @@ public class AvAAntiCheat extends JavaPlugin {
                 if (line.isEmpty() || line.startsWith("#")) continue;
                 try {
                     combatLoggedPlayers.add(UUID.fromString(line));
-                } catch (IllegalArgumentException ignored) {
-                }
+                } catch (IllegalArgumentException ignored) {}
             }
             if (!combatLoggedPlayers.isEmpty()) {
                 getLogger().info("Loaded " + combatLoggedPlayers.size() + " pending combat-logger punishment(s).");
@@ -259,9 +217,7 @@ public class AvAAntiCheat extends JavaPlugin {
 
     public void clearCombatLogger(UUID playerId) {
         if (playerId == null) return;
-        if (combatLoggedPlayers.remove(playerId)) {
-            saveCombatLoggers();
-        }
+        if (combatLoggedPlayers.remove(playerId)) saveCombatLoggers();
     }
 
     private void tickCombatTimers() {
@@ -269,17 +225,14 @@ public class AvAAntiCheat extends JavaPlugin {
         for (Player p : Bukkit.getOnlinePlayers()) {
             PlayerData data = playerDataMap.get(p.getUniqueId());
             if (data == null) continue;
-
             if (!combatTimerPosition.equalsIgnoreCase("BOSS_BAR") && data.combatBossBar != null) {
                 data.combatBossBar.removeAll();
                 data.combatBossBar = null;
             }
-
             if (data.isInCombat()) {
                 long secondsLeft = (data.combatEndTime - now) / 1000;
                 if (secondsLeft > 0) {
                     String message = ChatColor.RED + "⚔ In Combat: " + secondsLeft + "s ⚔";
-
                     if (combatTimerPosition.equalsIgnoreCase("BOSS_BAR")) {
                         if (data.combatBossBar == null) {
                             data.combatBossBar = Bukkit.createBossBar(message, BarColor.RED, BarStyle.SOLID);
@@ -298,12 +251,10 @@ public class AvAAntiCheat extends JavaPlugin {
                 data.combatEndTime = 0;
                 data.lastAttacker = null;
                 String clearMsg = ChatColor.GREEN + "You are no longer in combat.";
-
                 if (data.combatBossBar != null) {
                     data.combatBossBar.removeAll();
                     data.combatBossBar = null;
                 }
-
                 if (combatTimerPosition.equalsIgnoreCase("SUBTITLE")) {
                     p.sendTitle("", clearMsg, 0, 40, 10);
                 } else if (combatTimerPosition.equalsIgnoreCase("ACTION_BAR")) {
@@ -313,24 +264,17 @@ public class AvAAntiCheat extends JavaPlugin {
         }
     }
 
-    /**
-     * Re-evaluate packet check registration after a config reload.
-     */
     public void refreshPacketChecks() {
-        if (packetChecks != null) {
-            packetChecks.tryRegisterPacketListeners();
-        }
+        if (packetChecks != null) packetChecks.tryRegisterPacketListeners();
     }
 
     public void loadConfigValues() {
         currentAntiCheatMode = getConfig().getInt("default-mode", 1);
-
         enableFileLogging = getConfig().getBoolean("enable-logging", true);
         maxLogFiles = getConfig().getInt("max-logs", 20);
         boolean autoUpdateEnabled = getConfig().getBoolean("auto-update", false);
         if (updateManager != null) updateManager.setAutoUpdateEnabled(autoUpdateEnabled);
         if (logManager != null) logManager.updateSettings(enableFileLogging, maxLogFiles);
-
         checkFlightEnabled = getConfig().getBoolean("enabled-checks.flight", true);
         checkSpeedEnabled = getConfig().getBoolean("enabled-checks.speed", true);
         checkSpiderEnabled = getConfig().getBoolean("enabled-checks.spider", true);
@@ -342,10 +286,8 @@ public class AvAAntiCheat extends JavaPlugin {
         checkPacketEnabled = getConfig().getBoolean("enabled-checks.packet", false);
         checkMoveSimulatorEnabled = getConfig().getBoolean("enabled-checks.move-simulator", false);
         experimentalLogOnly = getConfig().getBoolean("experimental.log-only", true);
-
         bannedMods = getConfig().getStringList("banned-mods");
         if (bannedMods == null) bannedMods = new ArrayList<>();
-
         flyViolationLimit = getConfig().getInt("kick-limits.flight", 5);
         speedViolationLimit = getConfig().getInt("kick-limits.speed", 10);
         spiderViolationLimit = getConfig().getInt("kick-limits.spider", 5);
@@ -358,7 +300,6 @@ public class AvAAntiCheat extends JavaPlugin {
         multiAuraViolationLimit = getConfig().getInt("kick-limits.multi-aura", 5);
         noFallViolationLimit = getConfig().getInt("kick-limits.nofall", 5);
         scaffoldViolationLimit = getConfig().getInt("kick-limits.scaffold", 8);
-
         flightSeverity = normalizeSeverity(getConfig().getInt("check-severity.flight", 5));
         speedSeverity = normalizeSeverity(getConfig().getInt("check-severity.speed", 5));
         spiderSeverity = normalizeSeverity(getConfig().getInt("check-severity.spider", 5));
@@ -368,19 +309,14 @@ public class AvAAntiCheat extends JavaPlugin {
         modDetectorSeverity = normalizeSeverity(getConfig().getInt("check-severity.mod-detector", 5));
         dupeSeverity = normalizeSeverity(getConfig().getInt("check-severity.dupe", 5));
         inventoryWalkSeverity = normalizeSeverity(getConfig().getInt("check-severity.inventory-walk", 3));
-
         baseSpeedLimit = getConfig().getDouble("speed-check.base-limit", 0.36);
         iceSpeedLimit = getConfig().getDouble("speed-check.ice-limit", 1.3);
         glideGracePeriodMs = getConfig().getLong("speed-check.grace-period-ms", 7000);
-
         combatTimeoutSeconds = getConfig().getLong("combat-timeout-seconds", 30);
         combatTimerPosition = getConfig().getString("combat-timer-position", "ACTION_BAR");
-
         combatBlockedCommands = getConfig().getStringList("combat-blocked-commands");
         if (combatBlockedCommands == null || combatBlockedCommands.isEmpty()) {
-            combatBlockedCommands = new ArrayList<>(List.of(
-                    "/home", "/spawn", "/tpa", "/tpaccept", "/back", "/warp", "/rtp", "/tp"
-            ));
+            combatBlockedCommands = new ArrayList<>(List.of("/home", "/spawn", "/tpa", "/tpaccept", "/back", "/warp", "/rtp", "/tp"));
         } else {
             List<String> normalized = new ArrayList<>();
             for (String cmd : combatBlockedCommands) {
@@ -395,7 +331,6 @@ public class AvAAntiCheat extends JavaPlugin {
 
     private void sendStartupBanner() {
         String dash = ChatColor.GRAY + "──────────────────────────────────────────────────";
-
         String[] art = {
                 dash,
                 ChatColor.GOLD + "         _                      _   ",
@@ -419,14 +354,14 @@ public class AvAAntiCheat extends JavaPlugin {
     }
 
     public String getModeDescription(int mode) {
-        switch (mode) {
-            case 1: return "All Checks (Config Filtered)";
-            case 2: return "Flight/Movement/Speed/Phase";
-            case 3: return "PvP Checks";
-            case 4: return "Chat Spam";
-            case 0: return "Disabled";
-            default: return "Unknown";
-        }
+        return switch (mode) {
+            case 1 -> "All Checks (Config Filtered)";
+            case 2 -> "Flight/Movement/Speed/Phase";
+            case 3 -> "PvP Checks";
+            case 4 -> "Chat Spam";
+            case 0 -> "Disabled";
+            default -> "Unknown";
+        };
     }
 
     public String getEnabledChecksString() {
@@ -443,9 +378,7 @@ public class AvAAntiCheat extends JavaPlugin {
         if (checkMoveSimulatorEnabled) sb.append("MoveSim(exp)");
         if (sb.length() == 0) return "None";
         String result = sb.toString();
-        if (result.endsWith(", ")) {
-            result = result.substring(0, result.length() - 2);
-        }
+        if (result.endsWith(", ")) result = result.substring(0, result.length() - 2);
         return result;
     }
 
@@ -459,8 +392,7 @@ public class AvAAntiCheat extends JavaPlugin {
         getServer().getScheduler().runTask(this, () -> {
             if (player.isOnline()) {
                 player.setHealth(0.0);
-                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() +
-                        " combat logged and died: " + ChatColor.WHITE + reason);
+                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + " combat logged and died: " + ChatColor.WHITE + reason);
                 logToFile(player.getName(), "KILLED for: " + reason);
             }
         });
@@ -469,16 +401,12 @@ public class AvAAntiCheat extends JavaPlugin {
     public void punishPlayer(Player player, String cheatType, int violations) {
         getServer().getScheduler().runTask(this, () -> {
             int limit = resolveKickLimit(cheatType);
-
             if (violations > limit && limit > 0) {
-                String logMessage = "AUTOMATICALLY KICKED " + player.getName() +
-                        " for " + cheatType + " (" + violations + "/" + limit + ")";
-                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() +
-                        " was kicked for using " + cheatType + ChatColor.DARK_RED + ".");
+                String logMessage = "AUTOMATICALLY KICKED " + player.getName() + " for " + cheatType + " (" + violations + "/" + limit + ")";
+                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + " was kicked for using " + cheatType + ChatColor.DARK_RED + ".");
                 notifyOperators(player.getName() + " was kicked for " + cheatType + " (" + violations + "/" + limit + ").");
                 kickPlayer(player, cheatType + " detected (" + violations + "/" + limit + ")");
                 logToFile(player.getName(), logMessage);
-
                 PlayerData data = playerDataMap.get(player.getUniqueId());
                 if (data != null) {
                     data.flyViolations = 0;
@@ -504,28 +432,27 @@ public class AvAAntiCheat extends JavaPlugin {
     }
 
     private int resolveKickLimit(String cheatType) {
-        if (cheatType.equalsIgnoreCase("Flight")) return flyViolationLimit;
-        if (cheatType.equalsIgnoreCase("Speed")) return speedViolationLimit;
-        if (cheatType.equalsIgnoreCase("Spider (WallClimb)")) return spiderViolationLimit;
-        if (cheatType.equalsIgnoreCase("Chat Spam")) return spamViolationLimit;
-        if (cheatType.equalsIgnoreCase("Illegal Attack Sequence")) return sequenceViolationLimit;
-        if (cheatType.equalsIgnoreCase("Attack Speed (Autoclicker)")) return attackSpeedViolationLimit;
-        if (cheatType.equalsIgnoreCase("Item Duplication")) return dupeViolationLimit;
-        if (cheatType.equalsIgnoreCase("Reach")) return reachViolationLimit;
-        if (cheatType.equalsIgnoreCase("Hit Through Blocks (LOS)")) return losViolationLimit;
-        if (cheatType.equalsIgnoreCase("MultiAura")) return multiAuraViolationLimit;
-        if (cheatType.equalsIgnoreCase("NoFall")) return noFallViolationLimit;
-        if (cheatType.equalsIgnoreCase("Scaffold (Place Rate)")) return scaffoldViolationLimit;
-        return 0;
+        return switch (cheatType.toLowerCase()) {
+            case "flight" -> flyViolationLimit;
+            case "speed" -> speedViolationLimit;
+            case "spider (wallclimb)" -> spiderViolationLimit;
+            case "chat spam" -> spamViolationLimit;
+            case "illegal attack sequence" -> sequenceViolationLimit;
+            case "attack speed (autoclicker)" -> attackSpeedViolationLimit;
+            case "item duplication" -> dupeViolationLimit;
+            case "reach" -> reachViolationLimit;
+            case "hit through blocks (los)" -> losViolationLimit;
+            case "multiaura" -> multiAuraViolationLimit;
+            case "nofall" -> noFallViolationLimit;
+            case "scaffold (place rate)" -> scaffoldViolationLimit;
+            default -> 0;
+        };
     }
 
     public void logToFile(String source, String message) {
         logManager.logToFile(source, message);
     }
 
-    /**
-     * Staff / trusted bypass via permission only (no channel backdoors).
-     */
     public boolean shouldBypassChecks(Player player) {
         return player != null && player.hasPermission("ava.bypass");
     }
@@ -533,14 +460,10 @@ public class AvAAntiCheat extends JavaPlugin {
     public void notifyOperators(String message) {
         String fullMessage = AC_PREFIX + ChatColor.YELLOW + message;
         for (Player recipient : getServer().getOnlinePlayers()) {
-            if (recipient.hasPermission("ava.admin")) {
-                recipient.sendMessage(fullMessage);
-            }
+            if (recipient.hasPermission("ava.admin")) recipient.sendMessage(fullMessage);
         }
         getServer().getConsoleSender().sendMessage(fullMessage);
     }
-
-    // ===== Accessors used by checks/, listeners/ and commands/ =====
 
     public File getPluginFile() {
         return super.getFile();
@@ -564,7 +487,6 @@ public class AvAAntiCheat extends JavaPlugin {
 
     public void setCurrentAntiCheatMode(int mode) {
         this.currentAntiCheatMode = mode;
-        // Persist so /ac start|stop survives restarts (and matches default-mode in config).
         getConfig().set("default-mode", mode);
         saveConfig();
     }
