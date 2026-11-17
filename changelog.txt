@@ -1,12 +1,5 @@
 #changelog
-# Note: this is diffrent then changelog.md because this is what is shown on servers when the plugin auto updates
-[1.9.5.5-DEV]
-- Configurable punishment-commands in config (default vanilla kick)
-- Fixed MultiHit false positives when alternating two targets (#14)
-- Softened attack-speed check to reduce cooldown false positives
-- Hardened reach check with AABB distance + FOV gate (#15)
-- Fixed client brand showing as Unknown for vanilla clients
-- Cached server TPS lookups (was dominating Spark profiles in fly check)
+# Note: this is different then changelog.md because this is what is shown on servers when the plugin auto updates
 
 [1.9.5]
 Too much was changed to fit inside of here, read all changes on GitHub https://github.com/nsharp-collab/AvAAntiCheat/releases/tag/V.1.9.5
