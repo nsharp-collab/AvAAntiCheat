@@ -18,6 +18,8 @@ package com.nolan.ava.data;
 
 import org.bukkit.boss.BossBar;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -93,6 +95,7 @@ public class PlayerData {
     public long multiHitWindowStart = 0;
     public int multiHitCount = 0;
     public UUID multiHitLastTarget = null;
+    public final Set<UUID> multiHitTargets = new HashSet<>();
 
     public int scaffoldPlaceCount = 0;
     public long scaffoldWindowStart = 0;

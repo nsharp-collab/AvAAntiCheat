@@ -57,7 +57,9 @@ import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.bukkit.util.Vector;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -73,6 +75,8 @@ public class AvAListener implements Listener, PluginMessageListener {
     private final DupeCheck dupeCheck;
     private final PacketChecks packetChecks;
     private final MoveSimulator moveSimulator;
+    /** Brand often arrives before PlayerJoinEvent creates PlayerData on 1.20.2+. */
+    private final Map<UUID, String> pendingClientBrands = new ConcurrentHashMap<>();
 
     public AvAListener(AvAAntiCheat plugin,
                        MovementChecks movementChecks,
@@ -93,18 +97,52 @@ public class AvAListener implements Listener, PluginMessageListener {
     public void onPluginMessageReceived(String channel, Player player, byte[] message) {
         if (channel.equals("minecraft:brand")) {
             try {
-                int length = message[0] & 0xFF;
-                if (length <= 0 || 1 + length > message.length) return;
-                String brand = new String(message, 1, length, StandardCharsets.UTF_8);
+                String brand = readBrandString(message);
+                if (brand == null || brand.isBlank()) return;
 
                 PlayerData data = plugin.getPlayerData(player.getUniqueId());
                 if (data != null) {
                     data.clientBrand = brand;
+                } else {
+                    pendingClientBrands.put(player.getUniqueId(), brand);
                 }
             } catch (Exception e) {
                 // If the packet format is weird, fail silently
             }
         }
+    }
+
+    /**
+     * Minecraft brand payload is a VarInt-prefixed UTF-8 string.
+     */
+    private static String readBrandString(byte[] message) {
+        if (message == null || message.length == 0) return null;
+        int index = 0;
+        int length = 0;
+        int shift = 0;
+        while (index < message.length) {
+            byte b = message[index++];
+            length |= (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) break;
+            shift += 7;
+            if (shift > 35) return null;
+        }
+        if (length <= 0 || index + length > message.length) return null;
+        return new String(message, index, length, StandardCharsets.UTF_8);
+    }
+
+    private static String readApiClientBrand(Player player) {
+        // Paper exposes getClientBrandName(); Spigot API does not — call via reflection.
+        try {
+            Object brand = player.getClass().getMethod("getClientBrandName").invoke(player);
+            return brand != null ? brand.toString() : null;
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private boolean isUnknownBrand(String brand) {
+        return brand == null || brand.isBlank() || brand.equalsIgnoreCase("Unknown");
     }
 
     @EventHandler
@@ -264,12 +302,40 @@ public class AvAListener implements Listener, PluginMessageListener {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
 
-        plugin.putPlayerData(playerId, new PlayerData());
+        PlayerData joined = new PlayerData();
+        String pendingBrand = pendingClientBrands.remove(playerId);
+        if (!isUnknownBrand(pendingBrand)) {
+            joined.clientBrand = pendingBrand;
+        } else {
+            String apiBrand = readApiClientBrand(player);
+            if (!isUnknownBrand(apiBrand)) {
+                joined.clientBrand = apiBrand;
+            }
+        }
+        plugin.putPlayerData(playerId, joined);
         String ip = "unknown";
         if (player.getAddress() != null && player.getAddress().getAddress() != null) {
             ip = player.getAddress().getHostString();
         }
-        plugin.logToFile(player.getName(), "Player joined (IP: " + ip + ")");
+        plugin.logToFile(player.getName(), "Player joined (IP: " + ip + ", Brand: " + joined.clientBrand + ")");
+
+        // Brand can also arrive slightly after join; retry briefly if still unknown.
+        if (isUnknownBrand(joined.clientBrand)) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline()) return;
+                PlayerData data = plugin.getPlayerData(playerId);
+                if (data == null || !isUnknownBrand(data.clientBrand)) return;
+                String latePending = pendingClientBrands.remove(playerId);
+                if (!isUnknownBrand(latePending)) {
+                    data.clientBrand = latePending;
+                    return;
+                }
+                String apiBrand = readApiClientBrand(player);
+                if (!isUnknownBrand(apiBrand)) {
+                    data.clientBrand = apiBrand;
+                }
+            }, 40L);
+        }
 
         if (player.hasPermission("ava.admin") && plugin.getUpdateManager().isUpdateAvailable()) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
@@ -612,6 +678,7 @@ public class AvAListener implements Listener, PluginMessageListener {
                 plugin.killPlayer(player, plugin.getPvpLogReason());
             }
         }
+        pendingClientBrands.remove(player.getUniqueId());
         plugin.removePlayerData(player.getUniqueId());
         plugin.logToFile(player.getName(), "Player quit.");
     }

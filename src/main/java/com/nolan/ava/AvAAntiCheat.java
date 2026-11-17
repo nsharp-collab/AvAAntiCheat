@@ -12,12 +12,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file has already been participated in by StoodMusic58914
+ * This file already has SM.SMP and SM Team involved
+ * Permission reserved for SM-Team:{
+ * Anyone has power, but the prerequisite is to comply with: http://www.apache.org/licenses/LICENSE-2.0
  */
-//This file has already been participated in by StoodMusic58914
-//This file already has SM.SMP and SM Team involved
-//Permission reserved for SM-Team:{
-//Anyone has power, but the prerequisite is to comply with: http://www.apache.org/licenses/LICENSE-2.0
-//}
 package com.nolan.ava;
 
 import com.nolan.ava.checks.ChatCheck;
@@ -59,10 +59,10 @@ import java.util.UUID;
 
 public class AvAAntiCheat extends JavaPlugin {
     private static final String AC_PREFIX = ChatColor.translateAlternateColorCodes('&', "&6&l[AvA-AC] &r");
-    private static final String AC_VERSION = "1.9.5";
+    private static final String AC_VERSION = "1.9.5.5-DEV";
     private static final String AC_AUTHOR = "Nolan";
     public static final String PVP_LOG_REASON = "PvP Logging: Disconnected during combat";
-    private static final int CONFIG_VERSION = 5;
+    private static final int CONFIG_VERSION = 6;
 
     private int currentAntiCheatMode = 0;
     private boolean checkFlightEnabled = true;
@@ -104,6 +104,7 @@ public class AvAAntiCheat extends JavaPlugin {
     private long combatTimeoutSeconds = 30;
     private String combatTimerPosition = "ACTION_BAR";
     private List<String> combatBlockedCommands = new ArrayList<>();
+    private List<String> punishmentCommands = new ArrayList<>();
     private boolean enableFileLogging = true;
     private int maxLogFiles = 20;
     private final HashMap<UUID, PlayerData> playerDataMap = new HashMap<>();
@@ -327,6 +328,19 @@ public class AvAAntiCheat extends JavaPlugin {
             }
             combatBlockedCommands = normalized;
         }
+        List<String> loadedPunishCommands = getConfig().getStringList("punishment-commands");
+        punishmentCommands = new ArrayList<>();
+        if (loadedPunishCommands != null) {
+            for (String cmd : loadedPunishCommands) {
+                if (cmd == null || cmd.isBlank()) continue;
+                String c = cmd.trim();
+                if (c.startsWith("/")) c = c.substring(1);
+                if (!c.isBlank()) punishmentCommands.add(c);
+            }
+        }
+        if (punishmentCommands.isEmpty()) {
+            punishmentCommands.add("kick %player% %reason%");
+        }
     }
 
     private void sendStartupBanner() {
@@ -402,10 +416,11 @@ public class AvAAntiCheat extends JavaPlugin {
         getServer().getScheduler().runTask(this, () -> {
             int limit = resolveKickLimit(cheatType);
             if (violations > limit && limit > 0) {
-                String logMessage = "AUTOMATICALLY KICKED " + player.getName() + " for " + cheatType + " (" + violations + "/" + limit + ")";
-                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + " was kicked for using " + cheatType + ChatColor.DARK_RED + ".");
-                notifyOperators(player.getName() + " was kicked for " + cheatType + " (" + violations + "/" + limit + ").");
-                kickPlayer(player, cheatType + " detected (" + violations + "/" + limit + ")");
+                String reason = cheatType + " detected (" + violations + "/" + limit + ")";
+                String logMessage = "AUTOMATICALLY PUNISHED " + player.getName() + " for " + cheatType + " (" + violations + "/" + limit + ")";
+                getServer().broadcastMessage(AC_PREFIX + ChatColor.DARK_RED + player.getName() + " was punished for using " + cheatType + ChatColor.DARK_RED + ".");
+                notifyOperators(player.getName() + " was punished for " + cheatType + " (" + violations + "/" + limit + ").");
+                runPunishmentCommands(player, cheatType, violations, limit, reason);
                 logToFile(player.getName(), logMessage);
                 PlayerData data = playerDataMap.get(player.getUniqueId());
                 if (data != null) {
@@ -423,12 +438,30 @@ public class AvAAntiCheat extends JavaPlugin {
                 }
             } else if (limit > 0) {
                 if (violations >= Math.max(1, limit - 1)) {
-                    notifyOperators(player.getName() + " is close to a " + cheatType + " kick (" + violations + "/" + limit + ").");
+                    notifyOperators(player.getName() + " is close to a " + cheatType + " punishment (" + violations + "/" + limit + ").");
                 }
                 String warningMessage = "Warning! Detected potential " + cheatType + " (" + violations + "/" + limit + ")";
                 player.sendMessage(AC_PREFIX + ChatColor.RED + warningMessage);
             }
         });
+    }
+
+    private void runPunishmentCommands(Player player, String cheatType, int violations, int limit, String reason) {
+        for (String template : punishmentCommands) {
+            String cmd = template
+                    .replace("%player%", player.getName())
+                    .replace("%uuid%", player.getUniqueId().toString())
+                    .replace("%check%", cheatType)
+                    .replace("%vl%", String.valueOf(violations))
+                    .replace("%limit%", String.valueOf(limit))
+                    .replace("%reason%", reason);
+            try {
+                getServer().dispatchCommand(getServer().getConsoleSender(), cmd);
+                logToFile(player.getName(), "PUNISH CMD: " + cmd);
+            } catch (Exception e) {
+                getLogger().warning("Failed to run punishment command '" + cmd + "': " + e.getMessage());
+            }
+        }
     }
 
     private int resolveKickLimit(String cheatType) {

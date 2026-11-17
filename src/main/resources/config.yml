@@ -1,7 +1,7 @@
 ## AvA Anti-Cheat default configuration
 
 # config-version: Do not touch this! The plugin uses it to detect if your config file is outdated.
-config-version: 5
+config-version: 6
 
 # default-mode: plugin startup mode (0=Disabled, 1=All, 2=Flight, 3=PvP, 4=Chat Spam)
 default-mode: 1
@@ -121,7 +121,7 @@ combat-blocked-commands:
   - /rtp
   - /tp
 
-# kick-limits: number of offenses of each type required before an automatic kick
+# kick-limits: number of offenses of each type required before an automatic punishment
 kick-limits:
   flight: 5
   speed: 10
@@ -135,3 +135,9 @@ kick-limits:
   multi-aura: 5
   nofall: 5
   scaffold: 8
+
+# Commands run as console when a player exceeds a kick-limit.
+# Placeholders: %player% %uuid% %check% %vl% %limit% %reason%
+# Leading / is optional. Empty list falls back to a vanilla kick.
+punishment-commands:
+  - "kick %player% %reason%"

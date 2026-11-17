@@ -28,6 +28,7 @@ import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
@@ -42,6 +43,7 @@ public class CombatChecks {
     private static final long MAX_SWING_DELAY_MS = 350;
     private static final long MIN_ATTACK_DELAY_MS = 100;
     private static final long MULTI_HIT_WINDOW_MS = 350;
+    private static final double REACH_MAX_FOV_DEGREES = 70.0;
 
     private final AvAAntiCheat plugin;
 
@@ -103,18 +105,21 @@ public class CombatChecks {
                 adaptiveDelay += 0.03;
             }
 
-            // Soft cooldown floor from attack cooldown attribute when available
+            // Cooldown is only a boost when the predictive interval already looks too fast.
+            // Standalone cooldown floors caused frequent false positives on legit melee.
             float cooldown = attacker.getAttackCooldown();
-            boolean cooldownViolated = cooldown < 0.85f && intervalSeconds < 0.45;
+            boolean intervalTooFast = intervalSeconds < adaptiveDelay;
+            boolean cooldownBoost = intervalTooFast && cooldown < 0.7f && intervalSeconds < 0.35;
 
-            boolean isTooFast = intervalSeconds < adaptiveDelay || cooldownViolated;
+            boolean isTooFast = intervalTooFast;
             double consistencyThreshold = 0.04 + (5 - plugin.getCombatSeverity()) * 0.01;
             boolean isConsistent = data.attackIntervalVariance < consistencyThreshold;
-            int requiredSuspicion = Math.max(1, 3 - plugin.getCombatSeverity() / 3);
+            int requiredSuspicion = Math.max(2, 4 - plugin.getCombatSeverity() / 3);
 
             // Low variance strengthens suspicion; humanized clickers still accumulate more slowly
             if (isTooFast && isConsistent) {
                 data.attackSpeedSuspicion += 2;
+                if (cooldownBoost) data.attackSpeedSuspicion++;
             } else if (isTooFast) {
                 data.attackSpeedSuspicion++;
             } else {
@@ -156,10 +161,19 @@ public class CombatChecks {
 
         Location eye = attacker.getEyeLocation();
         Location target = ((LivingEntity) victim).getEyeLocation();
-        // Closest point approximation: use body midpoint for large entities
-        Location body = victim.getLocation().add(0, Math.min(1.0, victim.getHeight() * 0.5), 0);
+        Vector eyeVec = eye.toVector();
+        Vector closest = closestPointOnAABB(eyeVec, victim.getBoundingBox());
+        double distEye = eyeVec.distance(closest);
 
-        double distEye = eye.distance(body);
+        Vector toClosest = closest.clone().subtract(eyeVec);
+        double angleDeg = 0.0;
+        if (toClosest.lengthSquared() > 1.0E-6) {
+            Vector look = eye.getDirection().normalize();
+            Vector toward = toClosest.normalize();
+            double dot = Math.max(-1.0, Math.min(1.0, look.dot(toward)));
+            angleDeg = Math.toDegrees(Math.acos(dot));
+        }
+
         double maxReach = 3.1;
         AttributeInstance reachAttr = attacker.getAttribute(Attribute.PLAYER_ENTITY_INTERACTION_RANGE);
         if (reachAttr != null) {
@@ -174,10 +188,12 @@ public class CombatChecks {
         }
         maxReach += (5 - plugin.getCombatSeverity()) * 0.08;
 
-        if (distEye > maxReach + 0.15) {
+        // Distance alone must not convict — require the attacker to be looking near the target.
+        if (distEye > maxReach + 0.15 && angleDeg <= REACH_MAX_FOV_DEGREES) {
             data.reachViolations++;
             plugin.logToFile(attacker.getName(), "CHECK:Reach VIO=" + data.reachViolations
                     + " Dist=" + String.format("%.2f", distEye) + " Max=" + String.format("%.2f", maxReach)
+                    + " Angle=" + String.format("%.1f", angleDeg)
                     + " Ping=" + ping + "ms");
             if (data.reachViolations > plugin.getReachViolationLimit()) {
                 plugin.punishPlayer(attacker, "Reach", data.reachViolations);
@@ -216,8 +232,16 @@ public class CombatChecks {
         }
     }
 
+    private static Vector closestPointOnAABB(Vector point, BoundingBox box) {
+        double x = Math.max(box.getMinX(), Math.min(point.getX(), box.getMaxX()));
+        double y = Math.max(box.getMinY(), Math.min(point.getY(), box.getMaxY()));
+        double z = Math.max(box.getMinZ(), Math.min(point.getZ(), box.getMaxZ()));
+        return new Vector(x, y, z);
+    }
+
     /**
      * Multiple distinct living targets hit within a short window (multi-aura signal).
+     * Counts unique targets only — alternating A→B→A does not flag.
      */
     public void checkMultiHit(Player attacker, Entity victim, PlayerData data) {
         if (!plugin.isCheckCombatEnabled()) return;
@@ -230,30 +254,32 @@ public class CombatChecks {
 
         if (now - data.multiHitWindowStart > MULTI_HIT_WINDOW_MS) {
             data.multiHitWindowStart = now;
+            data.multiHitTargets.clear();
+            data.multiHitTargets.add(targetId);
             data.multiHitCount = 1;
             data.multiHitLastTarget = targetId;
             return;
         }
 
-        if (data.multiHitLastTarget != null && !data.multiHitLastTarget.equals(targetId)) {
-            data.multiHitCount++;
-            data.multiHitLastTarget = targetId;
-            if (data.multiHitCount >= 3) {
-                data.multiHitViolations++;
-                plugin.logToFile(attacker.getName(), "CHECK:MultiHit VIO=" + data.multiHitViolations
-                        + " Targets=" + data.multiHitCount + " WindowMs=" + MULTI_HIT_WINDOW_MS);
-                data.multiHitCount = 0;
-                data.multiHitWindowStart = now;
-                if (data.multiHitViolations > plugin.getMultiAuraViolationLimit()) {
-                    plugin.punishPlayer(attacker, "MultiAura", data.multiHitViolations);
-                } else {
-                    attacker.sendMessage(plugin.getPrefix() + ChatColor.RED
-                            + "Warning! Suspicious multi-target attacks. ("
-                            + data.multiHitViolations + "/" + plugin.getMultiAuraViolationLimit() + ")");
-                }
+        data.multiHitTargets.add(targetId);
+        data.multiHitLastTarget = targetId;
+        data.multiHitCount = data.multiHitTargets.size();
+
+        if (data.multiHitCount >= 3) {
+            data.multiHitViolations++;
+            plugin.logToFile(attacker.getName(), "CHECK:MultiHit VIO=" + data.multiHitViolations
+                    + " Targets=" + data.multiHitCount + " WindowMs=" + MULTI_HIT_WINDOW_MS);
+            data.multiHitTargets.clear();
+            data.multiHitCount = 0;
+            data.multiHitWindowStart = now;
+            data.multiHitLastTarget = null;
+            if (data.multiHitViolations > plugin.getMultiAuraViolationLimit()) {
+                plugin.punishPlayer(attacker, "MultiAura", data.multiHitViolations);
+            } else {
+                attacker.sendMessage(plugin.getPrefix() + ChatColor.RED
+                        + "Warning! Suspicious multi-target attacks. ("
+                        + data.multiHitViolations + "/" + plugin.getMultiAuraViolationLimit() + ")");
             }
-        } else {
-            data.multiHitLastTarget = targetId;
         }
     }
 }

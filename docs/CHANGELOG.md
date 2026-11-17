@@ -1,4 +1,20 @@
 # Changelog
+## DEV-[1.9.5.5] — 2026-11-17
+
+> **WARNING: THIS IS A DEV BUILD.**
+> *Expect bugs and unstable behavior while testing.*
+
+### What's New in v1.9.5.5-DEV
+
+* **Configurable punishments:** Added `punishment-commands` to `config.yml`. When a player exceeds a kick-limit, the plugin runs console commands instead of a hard-coded kick. Default remains `kick %player% %reason%`. Placeholders: `%player%`, `%uuid%`, `%check%`, `%vl%`, `%limit%`, `%reason%`. Config version bumped to 6.
+* **MultiHit / MultiAura fix (#14):** Counts unique targets in the detection window instead of target switches, so alternating between two entities (`A→B→A`) no longer false-flags.
+* **Attack speed:** Removed the standalone attack-cooldown OR path that caused frequent false positives on legit melee. Cooldown now only boosts suspicion when the predictive interval already looks too fast.
+* **Reach / LOS (#15):** Reach now measures eye distance to the closest point on the victim AABB and requires a look-angle (FOV) gate before convicting on distance alone.
+* **Client brand:** Fixed vanilla (and other) clients showing as `Unknown` by buffering early `minecraft:brand` packets, decoding VarInt length correctly, and falling back to Paper's brand API when needed.
+* **Performance:** Cached server TPS reflective lookups and the TPS value for 1 second. Spark profiles previously showed TPS sampling dominating fly-check runtime.
+
+---
+
 ## STABLE-[1.9.5] — 2026-11-3
 ## What's Changed
 * Improved checks by @anomalytty-coder in https://github.com/nsharp-collab/AvAAntiCheat/pull/6

@@ -2,6 +2,7 @@ com/nolan/ava/util/PingUtils.class
 com/nolan/ava/checks/AvAPacketListener.class
 com/nolan/ava/checks/DupeCheck.class
 com/nolan/ava/data/PlayerData.class
+com/nolan/ava/util/PingUtils$TpsAccess.class
 com/nolan/ava/checks/CombatChecks.class
 com/nolan/ava/checks/MoveSimulator.class
 com/nolan/ava/util/HardwareManager.class
