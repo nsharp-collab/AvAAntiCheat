@@ -27,7 +27,8 @@ If the answer is yes, please comment on that issue instead of opening a new one.
  - OS: [e.g. Windows]
  - Minecraft client type [e.g Bedrock or Java]
  - Minecraft server type [e.g Java Paper server]
- - Version [e.g. 1.21.10]
+ - Version [e.g. 1.21.11]
+ - AC version [e.g. 1.9.5]
 
 **Additional context**
 Add any other context about the problem here.
