@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/*
+* TO-DO
+* Fix issue #21 which is a duping glitch where a small dripleaf and update skipper allow players to exploit the server and dupe items
+*/
+
 package com.nolan.ava.checks;
 
 import com.nolan.ava.AvAAntiCheat;
@@ -22,13 +27,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 
-/**
- * Inventory integrity helpers.
- *
- * Cursor-on-close is normal vanilla behavior and is no longer treated as a dupe.
- * This check only forces a client inventory resync when enabled; real window-click
- * integrity belongs in a future inventory-packet check.
- */
+
 public class DupeCheck {
 
     private final AvAAntiCheat plugin;
